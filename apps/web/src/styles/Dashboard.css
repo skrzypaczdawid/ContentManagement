@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  width: 100%;
+  min-width: 100vw;
 }
 
 /* Header styles - similar to other pages */
@@ -20,7 +20,7 @@
   justify-content: space-between;
   align-items: center;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  width: 100%;
+  min-width: 100vw;
 }
 
 .user-menu {

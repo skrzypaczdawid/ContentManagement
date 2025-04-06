@@ -1,0 +1,8 @@
+{
+  "hostname": "localhost",
+  "port": 5432,
+  "database": "dudu",
+  "username": "postgres",
+  "password": "ad4c3fc0cf7f8bfd8c509d44c41f9664:8835a853ccd58a284daedc3594d5fe9c",
+  "isConfigured": true
+}
