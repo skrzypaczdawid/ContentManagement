@@ -21,6 +21,23 @@ export interface AdminUserConfig {
 @Injectable()
 export class DatabaseService {
   private pool: Pool | null = null;
+/**
+ * Initialize with existing configuration
+ */
+  async initializeFromConfig(config: DatabaseConnectionConfig): Promise<boolean> {
+    try {
+      this.initializeConnection(config);
+      const client = await this.pool?.connect();
+      if (client) {
+        client.release();
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to initialize from saved config:', error);
+      return false;
+    }
+  }
 
   /**
    * Test the database connection with provided credentials

@@ -7,6 +7,7 @@ import {
   type DatabaseConnectionConfig,
   type AdminUserConfig
 } from '../api/apiClient';
+import { databaseConfigService } from '../services/databaseConfigService';
 
 // Dialog component for showing feedback
 const Dialog = ({ 
@@ -50,7 +51,11 @@ const Dialog = ({
   );
 };
 
-const DatabaseSetup: React.FC = () => {
+interface DatabaseSetupProps {
+    onSetupComplete?: () => void;
+  }
+  
+  const DatabaseSetup: React.FC<DatabaseSetupProps> = ({ onSetupComplete }) => {
   // Form state
   const [formData, setFormData] = useState({
     hostname: 'localhost',
@@ -211,7 +216,7 @@ const DatabaseSetup: React.FC = () => {
       setDialog({
         isOpen: true,
         title: 'Error',
-        message: `An unexpected error occurred: ${error.message || 'Unknown error'}`,
+        message: `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`,
         isSuccess: false,
         onConfirm: null,
         confirmText: 'OK'
@@ -221,6 +226,12 @@ const DatabaseSetup: React.FC = () => {
     }
   };
 
+
+
+
+
+
+  
   // Show schema creation confirmation dialog
   const showSchemaConfirmDialog = () => {
     setDialog({
@@ -270,7 +281,7 @@ const DatabaseSetup: React.FC = () => {
       setDialog({
         isOpen: true,
         title: 'Error',
-        message: `An unexpected error occurred: ${error.message || 'Unknown error'}`,
+        message: `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`,
         isSuccess: false,
         onConfirm: null,
         confirmText: 'OK'
@@ -324,27 +335,44 @@ const DatabaseSetup: React.FC = () => {
       
       const result = await createAdminUser(dbConfig, adminConfig);
       
-      setDialog({
-        isOpen: true,
-        title: result.success ? 'Success' : 'Error',
-        message: result.success 
-          ? 'Admin user created successfully! You can now log in with your credentials.'
-          : `Admin user creation failed: ${result.message}`,
-        isSuccess: result.success,
-        onConfirm: result.success ? 
-          (() => {
-            // In a real application, this would redirect to login page
-            window.location.href = '/'; 
-          }) : 
-          null,
-        confirmText: result.success ? 'Go to Login' : 'OK'
-      });
-      
+      if (result.success) {
+        // Save the database configuration
+        databaseConfigService.saveConfig({
+          ...dbConfig,
+          isConfigured: true
+        });
+        
+        setDialog({
+          isOpen: true,
+          title: 'Success',
+          message: 'Admin user created successfully! You can now log in with your credentials.',
+          isSuccess: true,
+          onConfirm: () => {
+            // Call the onSetupComplete callback to navigate to Dashboard
+            if (onSetupComplete) {
+              onSetupComplete();
+            } else {
+              // Fallback if no callback provided
+              window.location.href = '/';
+            }
+          },
+          confirmText: 'Go to Dashboard'
+        });
+      } else {
+        setDialog({
+          isOpen: true,
+          title: 'Error',
+          message: `Admin user creation failed: ${result.message}`,
+          isSuccess: false,
+          onConfirm: null,
+          confirmText: 'OK'
+        });
+      }
     } catch (error) {
       setDialog({
         isOpen: true,
         title: 'Error',
-        message: `An unexpected error occurred: ${error.message || 'Unknown error'}`,
+        message: `An unexpected error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`,
         isSuccess: false,
         onConfirm: null,
         confirmText: 'OK'

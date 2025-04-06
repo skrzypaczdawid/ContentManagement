@@ -19,6 +19,27 @@ export interface AdminUserConfig {
   password: string;
 }
 
+
+
+/**
+ * Check database configuration status
+ */
+export const checkDatabaseStatus = async (): Promise<{
+    isConfigured: boolean;
+  }> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/status`);
+  
+      if (!response.ok) {
+        return { isConfigured: false };
+      }
+  
+      return await response.json();
+    } catch (error) {
+      console.error('API request failed:', error);
+      return { isConfigured: false };
+    }
+  };
 /**
  * Test the database connection with provided credentials
  */
@@ -48,7 +69,7 @@ export const testDatabaseConnection = async (config: DatabaseConnectionConfig): 
     console.error('API request failed:', error);
     return {
       success: false,
-      message: `Request failed: ${error.message || 'Unknown error'}`,
+      message: `Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 };
@@ -82,7 +103,7 @@ export const executeDatabaseSchema = async (config: DatabaseConnectionConfig): P
     console.error('API request failed:', error);
     return {
       success: false,
-      message: `Request failed: ${error.message || 'Unknown error'}`,
+      message: `Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 };
@@ -122,7 +143,7 @@ export const createAdminUser = async (
     console.error('API request failed:', error);
     return {
       success: false,
-      message: `Request failed: ${error.message || 'Unknown error'}`,
+      message: `Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
   }
 };
