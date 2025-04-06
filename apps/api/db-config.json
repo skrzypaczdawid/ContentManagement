@@ -1,8 +1,0 @@
-{
-  "hostname": "localhost",
-  "port": 5432,
-  "database": "dupa",
-  "username": "postgres",
-  "password": "postgres",
-  "isConfigured": true
-}

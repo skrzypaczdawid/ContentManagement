@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Welcome from './pages/Welcome'
 import DatabaseSetup from './pages/DatabaseSetup'
-import Dashboard from './pages/Dashboard' // You'll need to create this
+import Dashboard from './pages/Dashboard'
 import { checkDatabaseStatus } from './api/apiClient'
 import { databaseConfigService } from './services/databaseConfigService'
 import './App.css'
@@ -12,14 +12,20 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   
   // Simple state-based routing (in a real app, you'd use react-router or similar)
-  const [currentPage, setCurrentPage] = useState('welcome');
+  const [currentPage, setCurrentPage] = useState('loading'); // Start with loading state
 
   // Check database configuration status on startup
   useEffect(() => {
     const checkDbStatus = async () => {
       try {
-        // First check local storage
+        // Check local storage first for immediate decision
         const isLocallyConfigured = databaseConfigService.isDatabaseConfigured();
+        
+        // Pre-set the state based on local info to reduce flashing
+        if (isLocallyConfigured) {
+          setIsDatabaseConfigured(true);
+          setCurrentPage('dashboard');
+        }
         
         // Then verify with the API
         const { isConfigured } = await checkDatabaseStatus();
@@ -33,10 +39,14 @@ function App() {
           // If locally configured but API says not configured, clear local config
           databaseConfigService.clearConfig();
           setCurrentPage('welcome');
+        } else {
+          // Not configured anywhere
+          setCurrentPage('welcome');
         }
       } catch (error) {
         console.error('Failed to check database status:', error);
         setIsDatabaseConfigured(false);
+        setCurrentPage('welcome');
       } finally {
         setIsLoading(false);
       }
@@ -56,8 +66,14 @@ function App() {
     setCurrentPage('dashboard');
   };
 
+  // Show loading spinner during initial check
   if (isLoading) {
-    return <div className="loading">Loading...</div>;
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Loading application...</p>
+      </div>
+    );
   }
 
   return (
@@ -68,7 +84,7 @@ function App() {
       {!isDatabaseConfigured && currentPage === 'database-setup' && 
         <DatabaseSetup onSetupComplete={handleSetupComplete} />}
       
-      {isDatabaseConfigured && <Dashboard />}
+      {(isDatabaseConfigured || currentPage === 'dashboard') && <Dashboard />}
     </div>
   )
 }
