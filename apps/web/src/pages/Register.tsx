@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import '../styles/Login.css'; // Reuse login styles
 import { authService } from '../services/authService';
 import { getDepartments } from '../api/apiClient';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RegisterProps {
   onRegisterSuccess: () => void;
@@ -15,6 +16,9 @@ interface Department {
 }
 
 const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onLoginClick }) => {
+  // Use auth context to access updateUser method
+  const { updateUser } = useAuth();
+
   // Form state
   const [formData, setFormData] = useState({
     username: '',
@@ -130,6 +134,8 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onLoginClick }) 
         departmentId: formData.departmentId ? parseInt(formData.departmentId) : undefined
       });
       
+      // Update user state before calling onRegisterSuccess
+      updateUser();
       onRegisterSuccess();
     } catch (err) {
       setErrors({

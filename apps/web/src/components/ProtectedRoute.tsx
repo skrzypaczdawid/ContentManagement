@@ -13,8 +13,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   requiredRole 
 }) => {
-  const { isAuthenticated, isLoading, user, hasRole } = useAuth();
+  const { isAuthenticated, isLoading, user, hasRole, updateUser } = useAuth();
   const [showLogin, setShowLogin] = React.useState(true);
+
+  // Trigger user update on mount to ensure latest authentication state
+  React.useEffect(() => {
+    updateUser();
+  }, [updateUser]);
 
   // Show loading spinner while checking authentication
   if (isLoading) {
@@ -30,12 +35,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   if (!isAuthenticated) {
     return showLogin ? (
       <Login 
-        onLoginSuccess={() => {}} 
+        onLoginSuccess={() => updateUser()} 
         onRegisterClick={() => setShowLogin(false)} 
       />
     ) : (
       <Register 
-        onRegisterSuccess={() => {}} 
+        onRegisterSuccess={() => updateUser()} 
         onLoginClick={() => setShowLogin(true)}
       />
     );

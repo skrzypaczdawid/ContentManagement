@@ -1,5 +1,5 @@
 // apps/web/src/contexts/AuthContext.tsx
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
+import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
 import { authService, User } from '../services/authService';
 
 interface AuthContextType {
@@ -10,6 +10,7 @@ interface AuthContextType {
   logout: () => void;
   register: (userData: any) => Promise<void>;
   hasRole: (role: string) => boolean;
+  updateUser: (updatedUser?: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -21,6 +22,24 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Function to update user state
+  const updateUser = useCallback((updatedUser?: User | null) => {
+    if (updatedUser === undefined) {
+      // Check stored user and token
+      const storedUser = authService.getUser();
+      const token = authService.getToken();
+      
+      if (storedUser && token) {
+        setUser(storedUser);
+      } else {
+        setUser(null);
+      }
+    } else {
+      // Explicitly set user (can be null or a new user object)
+      setUser(updatedUser);
+    }
+  }, []);
 
   // Load user from storage on initial mount
   useEffect(() => {
@@ -37,10 +56,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           } else {
             // If token is invalid, clear the stored data
             authService.logout();
+            setUser(null);
           }
         } catch (error) {
           console.error('Token validation error:', error);
           authService.logout();
+          setUser(null);
         }
       }
       
@@ -90,7 +111,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     register,
-    hasRole
+    hasRole,
+    updateUser
   };
 
   return (

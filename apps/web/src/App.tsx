@@ -9,8 +9,8 @@ import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
 function AppContent() {
-  // Get auth context
-  const { isAuthenticated } = useAuth();
+  // Get auth context with the new updateUser method
+  const { isAuthenticated, updateUser } = useAuth();
   
   // State to track database configuration status
   const [isDatabaseConfigured, setIsDatabaseConfigured] = useState<boolean | null>(null);
@@ -40,6 +40,8 @@ function AppContent() {
         // If database is configured, go to dashboard
         if (isConfigured) {
           setCurrentPage('dashboard');
+          // Trigger user state update to ensure current authentication state
+          updateUser();
         } else if (isLocallyConfigured) {
           // If locally configured but API says not configured, clear local config
           databaseConfigService.clearConfig();
@@ -58,7 +60,7 @@ function AppContent() {
     };
 
     checkDbStatus();
-  }, []);
+  }, [updateUser]);
 
   // Function to navigate between pages
   const navigateTo = (page: string) => {
@@ -89,7 +91,7 @@ function AppContent() {
       {!isDatabaseConfigured && currentPage === 'database-setup' && 
         <DatabaseSetup onSetupComplete={handleSetupComplete} />}
       
-      {(isDatabaseConfigured || currentPage === 'dashboard') && (
+      {(isDatabaseConfigured || isAuthenticated) && (
         <ProtectedRoute>
           <Dashboard />
         </ProtectedRoute>

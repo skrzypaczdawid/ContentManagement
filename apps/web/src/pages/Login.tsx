@@ -2,13 +2,17 @@
 import React, { useState } from 'react';
 import '../styles/Login.css';
 import { authService } from '../services/authService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LoginProps {
   onLoginSuccess: () => void;
   onRegisterClick: () => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRegisterClick }) => {
+const Login: React.FC<LoginProps> = ({ 
+  onLoginSuccess, 
+  onRegisterClick 
+}) => {
   // Form state
   const [credentials, setCredentials] = useState({
     username: '',
@@ -20,6 +24,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRegisterClick }) => {
   
   // Loading state
   const [isLoading, setIsLoading] = useState(false);
+
+  // Use auth context to access updateUser method
+  const { updateUser } = useAuth();
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -52,6 +59,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onRegisterClick }) => {
     
     try {
       await authService.login(credentials);
+      // Update user state before calling onLoginSuccess
+      updateUser();
       onLoginSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
