@@ -1,12 +1,16 @@
 import React from 'react';
 import '../styles/Welcome.css';
 
-const Welcome: React.FC = () => {
+interface WelcomeProps {
+  onGetStarted: () => void;
+}
+
+const Welcome: React.FC<WelcomeProps> = ({ onGetStarted }) => {
   return (
     <div className="welcome-container">
       <header className="welcome-header">
         <div className="logo-container">
-            <img src="./logo-big.svg" alt="logo" width="100px"/>
+            <img src="./logo-small.svg" alt="logo" width="100px"/>
           <h1 className="app-title">CMDB</h1>
           <p className="app-subtitle">Configuration Management Database</p>
         </div>
@@ -20,7 +24,7 @@ const Welcome: React.FC = () => {
             within your organization.
           </p>
           <div className="cta-buttons">
-            <button className="primary-btn" onClick={() => alert('This will take you to the database setup wizard')}>
+            <button className="primary-btn" onClick={onGetStarted}>
               Get Started
             </button>
           </div>
