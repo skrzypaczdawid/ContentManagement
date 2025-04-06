@@ -56,8 +56,5 @@ export class RolesGuard implements CanActivate {
   }
 }
 
-// Decorator for public routes
-export const Public = () => Reflector.createDecorator({ isPublic: true });
-
-// Decorator for role-based access
-export const Roles = (...roles: string[]) => Reflector.createDecorator({ roles });
+export const Public = () => Reflector.createDecorator<boolean>('isPublic', true);
+export const Roles = (...roles: string[]) => Reflector.createDecorator<string[]>('roles', roles);

@@ -21,7 +21,7 @@ export class DepartmentsService {
         throw new Error('Database not configured');
       }
       
-      client = await this.databaseService.getPool()?.connect();
+      client = await this.databaseService.getPool()!.connect();
       
       // Query all departments
       const result = await client?.query(

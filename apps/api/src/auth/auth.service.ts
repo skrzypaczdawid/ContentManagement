@@ -49,7 +49,7 @@ export class AuthService {
     let client: PoolClient | null = null;
     
     try {
-      client = await this.databaseService.getPool()?.connect();
+        client = await this.databaseService.getPool()!.connect();
       
       // Find the user
       const result = await client?.query(
@@ -120,7 +120,7 @@ export class AuthService {
     let client: PoolClient | null = null;
     
     try {
-      client = await this.databaseService.getPool()?.connect();
+      client = await this.databaseService.getPool()!.connect();
       
       // Check if username or email already exists
       const checkResult = await client?.query(
