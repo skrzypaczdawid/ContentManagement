@@ -1,8 +1,8 @@
 {
   "hostname": "localhost",
   "port": 5432,
-  "database": "dudu",
+  "database": "dam",
   "username": "postgres",
-  "password": "ad4c3fc0cf7f8bfd8c509d44c41f9664:8835a853ccd58a284daedc3594d5fe9c",
+  "password": "30f7a8af8a84e1fc0d08ee8c680c8826:e617e48a6bbb4b5aa48a50e7217293d5",
   "isConfigured": true
 }

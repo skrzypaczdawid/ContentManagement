@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Pool, PoolClient } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as bcrypt from 'bcrypt';
 
 export interface DatabaseConnectionConfig {
   hostname: string;
@@ -225,7 +226,8 @@ export class DatabaseService {
       
       // Generate a bcrypt hash for the password (would normally use bcrypt but using a placeholder)
       // In a real app, you would use bcrypt.hash() - this is just a placeholder
-      const hashedPassword = `$2a$12$dummyhashfor${adminConfig.password}`;
+      const bcrypt = require('bcrypt');
+      const hashedPassword = await bcrypt.hash(adminConfig.password, 10);
       
       // Insert the admin user
       await client.query(
