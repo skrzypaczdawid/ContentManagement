@@ -1,13 +1,192 @@
-import React from 'react';
+// apps/web/src/pages/Dashboard.tsx
+import React, { useState } from 'react';
 import '../styles/Dashboard.css';
 import { useAuth } from '../contexts/AuthContext';
 
+// Import page components
+import AssetsPage from './AssetsPage';
+import UsersPage from './UsersPage';
+import DepartmentsPage from './DepartmentsPage';
+import AssignmentsPage from './AssignmentsPage';
+import ReportsPage from './ReportsPage';
+import SettingsPage from './SettingsPage';
+
+// Navigation items type
+interface NavItem {
+  id: string;
+  label: string;
+  icon: string;
+  component: React.ComponentType;
+  adminOnly?: boolean;
+}
+
+// Navigation configuration
+const NAV_ITEMS: NavItem[] = [
+  {
+    id: 'overview',
+    label: 'Dashboard',
+    icon: '📊',
+    component: OverviewContent
+  },
+  {
+    id: 'assets',
+    label: 'Assets',
+    icon: '💻',
+    component: AssetsPage
+  },
+  {
+    id: 'users',
+    label: 'Users',
+    icon: '👥',
+    component: UsersPage
+  },
+  {
+    id: 'departments',
+    label: 'Departments',
+    icon: '🏢',
+    component: DepartmentsPage
+  },
+  {
+    id: 'assignments',
+    label: 'Assignments',
+    icon: '📋',
+    component: AssignmentsPage
+  },
+  {
+    id: 'reports',
+    label: 'Reports',
+    icon: '📝',
+    component: ReportsPage
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: '⚙️',
+    component: SettingsPage,
+    adminOnly: true
+  }
+];
+
+// Overview Content Component
+function OverviewContent() {
+  return (
+    <div className="overview-content">
+      <div className="dashboard-welcome">
+        <h2>Welcome to InvenTrack CMDB</h2>
+        <p>Your centralized asset management system</p>
+      </div>
+
+      <div className="dashboard-stats">
+        <div className="stat-card">
+          <h3>Total Assets</h3>
+          <p className="stat-value">45</p>
+          <p className="stat-detail">+5 this month</p>
+        </div>
+        <div className="stat-card">
+          <h3>Active Assignments</h3>
+          <p className="stat-value">32</p>
+          <p className="stat-detail">+3 this week</p>
+        </div>
+        <div className="stat-card">
+          <h3>Departments</h3>
+          <p className="stat-value">6</p>
+          <p className="stat-detail">All departments tracked</p>
+        </div>
+        <div className="stat-card">
+          <h3>Users</h3>
+          <p className="stat-value">42</p>
+          <p className="stat-detail">+2 new users</p>
+        </div>
+      </div>
+
+      <div className="dashboard-quick-actions">
+        <div className="quick-action-card">
+          <h3>Recent Assignments</h3>
+          <ul>
+            <li>
+              <span>MacBook Pro</span>
+              <span>Assigned to John Doe</span>
+              <span className="date">2 days ago</span>
+            </li>
+            <li>
+              <span>Dell Monitor</span>
+              <span>Assigned to Emily Chen</span>
+              <span className="date">1 week ago</span>
+            </li>
+          </ul>
+        </div>
+
+        <div className="quick-action-card">
+          <h3>Upcoming Returns</h3>
+          <ul>
+            <li>
+              <span>Cisco Router</span>
+              <span>Due in 5 days</span>
+              <span className="status overdue">Overdue</span>
+            </li>
+            <li>
+              <span>iPhone 14 Pro</span>
+              <span>Due in 15 days</span>
+              <span className="status active">Active</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="dashboard-insights">
+        <div className="insight-card">
+          <h3>Asset Types Distribution</h3>
+          <div className="asset-distribution">
+            <div className="distribution-item">
+              <span>Laptops</span>
+              <div className="distribution-bar">
+                <div 
+                  className="bar-fill" 
+                  style={{width: '45%', backgroundColor: '#8A4FFF'}}
+                ></div>
+              </div>
+              <span>45%</span>
+            </div>
+            <div className="distribution-item">
+              <span>Monitors</span>
+              <div className="distribution-bar">
+                <div 
+                  className="bar-fill" 
+                  style={{width: '25%', backgroundColor: '#4ECDC4'}}
+                ></div>
+              </div>
+              <span>25%</span>
+            </div>
+            <div className="distribution-item">
+              <span>Mobile Devices</span>
+              <div className="distribution-bar">
+                <div 
+                  className="bar-fill" 
+                  style={{width: '20%', backgroundColor: '#FFD166'}}
+                ></div>
+              </div>
+              <span>20%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
+  const [activeNavItem, setActiveNavItem] = useState('overview');
 
-  const handleLogout = () => {
-    logout();
-  };
+  // Filter navigation items based on user role
+  const filteredNavItems = NAV_ITEMS.filter(
+    item => !item.adminOnly || user?.role === 'admin'
+  );
+
+  // Get the active component
+  const ActiveComponent = NAV_ITEMS.find(
+    item => item.id === activeNavItem
+  )?.component || OverviewContent;
 
   return (
     <div className="dashboard-container">
@@ -21,7 +200,7 @@ const Dashboard: React.FC = () => {
             <span className="user-name">{user?.firstName} {user?.lastName}</span>
             <span className="user-role">{user?.role}</span>
           </div>
-          <button className="logout-btn" onClick={handleLogout}>
+          <button className="logout-btn" onClick={logout}>
             Logout
           </button>
         </div>
@@ -31,88 +210,27 @@ const Dashboard: React.FC = () => {
         <div className="dashboard-sidebar">
           <nav className="dashboard-nav">
             <ul>
-              <li className="nav-item active">
-                <span className="nav-icon">📊</span>
-                <span>Dashboard</span>
-              </li>
-              <li className="nav-item">
-                <span className="nav-icon">💻</span>
-                <span>Assets</span>
-              </li>
-              <li className="nav-item">
-                <span className="nav-icon">👥</span>
-                <span>Users</span>
-              </li>
-              <li className="nav-item">
-                <span className="nav-icon">🏢</span>
-                <span>Departments</span>
-              </li>
-              <li className="nav-item">
-                <span className="nav-icon">📋</span>
-                <span>Assignments</span>
-              </li>
-              <li className="nav-item">
-                <span className="nav-icon">📝</span>
-                <span>Reports</span>
-              </li>
-              {user?.role === 'admin' && (
-                <li className="nav-item">
-                  <span className="nav-icon">⚙️</span>
-                  <span>Settings</span>
+              {filteredNavItems.map(item => (
+                <li 
+                  key={item.id}
+                  className={`nav-item ${activeNavItem === item.id ? 'active' : ''}`}
+                  onClick={() => setActiveNavItem(item.id)}
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  <span>{item.label}</span>
                 </li>
-              )}
+              ))}
             </ul>
           </nav>
         </div>
 
         <div className="dashboard-main">
-          <div className="dashboard-welcome">
-            <h2>Welcome, {user?.firstName}!</h2>
-            <p>Here's an overview of your CMDB system</p>
-          </div>
-
-          <div className="dashboard-stats">
-            <div className="stat-card">
-              <h3>Assets</h3>
-              <p className="stat-value">0</p>
-            </div>
-            <div className="stat-card">
-              <h3>Users</h3>
-              <p className="stat-value">1</p>
-            </div>
-            <div className="stat-card">
-              <h3>Departments</h3>
-              <p className="stat-value">6</p>
-            </div>
-          </div>
-
-          <div className="dashboard-cards">
-            <div className="info-card">
-              <h3>My Assigned Assets</h3>
-              <div className="empty-state">
-                <span className="empty-icon">📦</span>
-                <p>No assets assigned yet</p>
-              </div>
-            </div>
-
-            <div className="info-card">
-              <h3>Recent Activities</h3>
-              <div className="activity-list">
-                <div className="activity-item">
-                  <span className="activity-icon">✅</span>
-                  <div className="activity-content">
-                    <p>You logged into the system</p>
-                    <span className="activity-time">Just now</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ActiveComponent />
         </div>
       </main>
 
       <footer className="dashboard-footer">
-        <p>&copy; {new Date().getFullYear()} Witold Mikołajczak & Dawid Skrzypacz. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} InvenTrack CMDB. All rights reserved.</p>
       </footer>
     </div>
   );
