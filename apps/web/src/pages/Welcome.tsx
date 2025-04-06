@@ -11,14 +11,14 @@ const Welcome: React.FC<WelcomeProps> = ({ onGetStarted }) => {
       <header className="welcome-header">
         <div className="logo-container">
             <img src="./logo-small.svg" alt="logo" width="100px"/>
-          <h1 className="app-title">CMDB</h1>
-          <p className="app-subtitle">Configuration Management Database</p>
+          <h1 className="app-title">InvenTrack</h1>
+          <p className="app-subtitle">Your Assets, Our Priority</p>
         </div>
       </header>
       
       <main className="welcome-content">
         <section className="hero-section">
-          <h2>Welcome to Your Asset Management Solution</h2>
+          <h2>Welcome to InvenTrack</h2>
           <p>
             A centralized platform for tracking, managing, and assigning IT assets 
             within your organization.
