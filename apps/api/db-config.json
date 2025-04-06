@@ -1,0 +1,8 @@
+{
+  "hostname": "localhost",
+  "port": 5432,
+  "database": "dupaa",
+  "username": "postgres",
+  "password": "ddae788bf0f251459384ec2ca4f8ad28:b43e094a7ef286e1ece90f31b1cf7b12",
+  "isConfigured": true
+}

@@ -19,13 +19,28 @@ export class DatabaseController {
 
   @Post('test-connection')
   async testConnection(@Body() config: DatabaseConnectionConfig) {
-    const result = await this.databaseService.testConnection(config);
-    
-    if (!result.success) {
-      throw new HttpException(result.message, HttpStatus.BAD_REQUEST);
+    try {
+      // Ensure password is a string
+      if (config.password && typeof config.password !== 'string') {
+        config.password = String(config.password);
+      }
+      
+      const result = await this.databaseService.testConnection(config);
+      
+      if (!result.success) {
+        throw new HttpException(result.message, HttpStatus.BAD_REQUEST);
+      }
+      
+      return result;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException(
+        `Database connection test failed: ${error.message || 'Unknown error'}`, 
+        HttpStatus.INTERNAL_SERVER_ERROR
+      );
     }
-    
-    return result;
   }
 
   @Post('execute-schema')

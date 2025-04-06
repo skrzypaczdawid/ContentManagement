@@ -72,13 +72,30 @@ export class DatabaseService {
    * Initialize the database connection pool
    */
   initializeConnection(config: DatabaseConnectionConfig): void {
-    this.pool = new Pool({
-      host: config.hostname,
-      port: config.port,
-      database: config.database,
-      user: config.username,
-      password: config.password,
-    });
+    try {
+      // Validate password is a string before creating the pool
+      if (typeof config.password !== 'string') {
+        console.error('Database password must be a string');
+        config.password = String(config.password || ''); // Convert to string or use empty string
+      }
+      
+      this.pool = new Pool({
+        host: config.hostname,
+        port: config.port,
+        database: config.database,
+        user: config.username,
+        password: config.password,
+      });
+      
+      // Add error handler to the pool
+      this.pool.on('error', (err) => {
+        console.error('Unexpected error on idle client', err);
+      });
+      
+    } catch (error) {
+      console.error('Failed to initialize database connection:', error);
+      this.pool = null;
+    }
   }
 
   /**
