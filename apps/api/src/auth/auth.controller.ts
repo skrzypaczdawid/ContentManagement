@@ -1,11 +1,13 @@
 // apps/api/src/auth/auth.controller.ts
 import { Controller, Post, Body, HttpException, HttpStatus, Get, Headers } from '@nestjs/common';
 import { AuthService, UserCredentials, RegisterUserDto } from './auth.service';
+import { Public } from './auth.guard';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('login')
   async login(@Body() credentials: UserCredentials) {
     try {
@@ -18,6 +20,7 @@ export class AuthController {
     }
   }
 
+  @Public()
   @Post('register')
   async register(@Body() userData: RegisterUserDto) {
     try {
@@ -29,7 +32,7 @@ export class AuthController {
       );
     }
   }
-
+  @Public()
   @Get('validate')
   async validateToken(@Headers('authorization') authHeader: string) {
     try {

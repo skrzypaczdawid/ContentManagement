@@ -11,7 +11,7 @@ export class DatabaseController {
     private readonly databaseConfigService: DatabaseConfigService
   ) {}
 
-
+  @Public()
   @Get('status')
   async getStatus() {
     return {
@@ -19,7 +19,7 @@ export class DatabaseController {
     };
   }
 
-
+  @Public()
   @Post('test-connection')
   async testConnection(@Body() config: DatabaseConnectionConfig) {
     try {
@@ -46,7 +46,7 @@ export class DatabaseController {
     }
   }
 
-
+  @Public()
   @Post('execute-schema')
   async executeSchema(@Body() config: DatabaseConnectionConfig) {
     const result = await this.databaseService.executeDatabaseSchema(config);
@@ -58,7 +58,7 @@ export class DatabaseController {
     return result;
   }
 
-
+  @Public()
   @Post('create-admin')
   async createAdminUser(
     @Body() payload: { dbConfig: DatabaseConnectionConfig, adminConfig: AdminUserConfig }

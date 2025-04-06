@@ -7,7 +7,7 @@ import { Public } from '../auth/auth.guard';
 export class DepartmentsController {
   constructor(private readonly departmentsService: DepartmentsService) {}
 
-  //@Public() // Make this endpoint public for registration
+  @Public() // Make this endpoint public for registration
   @Get()
   async getAllDepartments() {
     try {

@@ -13,7 +13,7 @@ export class AppController {
     return this.appService.getHello();
   }
 
-
+  @Public()
   @Get('status')
   getDatabaseStatus() {
     return this.appService.getDatabaseStatus();
