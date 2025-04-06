@@ -1,5 +1,54 @@
 import React, { useState } from 'react';
 import '../styles/DatabaseSetup.css';
+import {
+  testDatabaseConnection,
+  executeDatabaseSchema,
+  createAdminUser,
+  type DatabaseConnectionConfig,
+  type AdminUserConfig
+} from '../api/apiClient';
+
+// Dialog component for showing feedback
+const Dialog = ({ 
+  isOpen, 
+  title, 
+  message, 
+  isSuccess, 
+  onClose, 
+  onConfirm = null,
+  confirmText = 'OK' 
+}: { 
+  isOpen: boolean;
+  title: string;
+  message: string;
+  isSuccess: boolean;
+  onClose: () => void;
+  onConfirm?: (() => void) | null;
+  confirmText?: string;
+}) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="dialog-overlay">
+      <div className="dialog">
+        <h3 className={`dialog-title ${isSuccess ? 'success' : 'error'}`}>{title}</h3>
+        <div className="dialog-content">
+          <p>{message}</p>
+        </div>
+        <div className="dialog-actions">
+          {onConfirm && (
+            <button className="primary-btn" onClick={onConfirm}>
+              {confirmText}
+            </button>
+          )}
+          <button className={onConfirm ? "secondary-btn" : "primary-btn"} onClick={onClose}>
+            {onConfirm ? 'Cancel' : 'Close'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const DatabaseSetup: React.FC = () => {
   // Form state
@@ -28,6 +77,23 @@ const DatabaseSetup: React.FC = () => {
 
   // Step state (1 = Database Connection, 2 = Admin User)
   const [currentStep, setCurrentStep] = useState(1);
+
+  // Processing state for buttons
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Connection test and database status
+  const [isDbConnected, setIsDbConnected] = useState(false);
+  const [isSchemaCreated, setIsSchemaCreated] = useState(false);
+
+  // Dialog state
+  const [dialog, setDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    isSuccess: false,
+    onConfirm: null as (() => void) | null,
+    confirmText: 'OK'
+  });
 
   // Handle input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,27 +171,186 @@ const DatabaseSetup: React.FC = () => {
     return isValid;
   };
 
+  // Test database connection
+  const handleTestConnection = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    
+    if (!validateDatabaseForm()) {
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      const connectionConfig: DatabaseConnectionConfig = {
+        hostname: formData.hostname,
+        port: parseInt(formData.port),
+        database: formData.database,
+        username: formData.username,
+        password: formData.password
+      };
+      
+      const result = await testDatabaseConnection(connectionConfig);
+      
+      setDialog({
+        isOpen: true,
+        title: result.success ? 'Connection Successful' : 'Connection Failed',
+        message: result.message,
+        isSuccess: result.success,
+        onConfirm: result.success ? 
+          (() => {
+            setDialog(prev => ({ ...prev, isOpen: false }));
+            setIsDbConnected(true);
+            showSchemaConfirmDialog();
+          }) : 
+          null,
+        confirmText: result.success ? 'Continue' : 'OK'
+      });
+      
+    } catch (error) {
+      setDialog({
+        isOpen: true,
+        title: 'Error',
+        message: `An unexpected error occurred: ${error.message || 'Unknown error'}`,
+        isSuccess: false,
+        onConfirm: null,
+        confirmText: 'OK'
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Show schema creation confirmation dialog
+  const showSchemaConfirmDialog = () => {
+    setDialog({
+      isOpen: true,
+      title: 'Create Database Schema',
+      message: 'Would you like to create the database schema now? This is required before creating an admin user.',
+      isSuccess: true,
+      onConfirm: () => {
+        setDialog(prev => ({ ...prev, isOpen: false }));
+        handleCreateSchema();
+      },
+      confirmText: 'Create Schema'
+    });
+  };
+
+  // Create database schema
+  const handleCreateSchema = async () => {
+    setIsProcessing(true);
+    
+    try {
+      const connectionConfig: DatabaseConnectionConfig = {
+        hostname: formData.hostname,
+        port: parseInt(formData.port),
+        database: formData.database,
+        username: formData.username,
+        password: formData.password
+      };
+      
+      const result = await executeDatabaseSchema(connectionConfig);
+      
+      setDialog({
+        isOpen: true,
+        title: result.success ? 'Schema Created' : 'Schema Creation Failed',
+        message: result.message,
+        isSuccess: result.success,
+        onConfirm: result.success ? 
+          (() => {
+            setDialog(prev => ({ ...prev, isOpen: false }));
+            setIsSchemaCreated(true);
+            setCurrentStep(2);
+          }) : 
+          null,
+        confirmText: result.success ? 'Continue to Admin Setup' : 'OK'
+      });
+      
+    } catch (error) {
+      setDialog({
+        isOpen: true,
+        title: 'Error',
+        message: `An unexpected error occurred: ${error.message || 'Unknown error'}`,
+        isSuccess: false,
+        onConfirm: null,
+        confirmText: 'OK'
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Handle next step
   const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateDatabaseForm()) {
-      setCurrentStep(2);
+      if (!isDbConnected) {
+        // If not connected yet, test connection first
+        handleTestConnection(e as unknown as React.MouseEvent);
+      } else if (!isSchemaCreated) {
+        // If connected but schema not created, prompt for schema creation
+        showSchemaConfirmDialog();
+      } else {
+        // If everything is ready, proceed to next step
+        setCurrentStep(2);
+      }
     }
   };
 
-  // Handle form submission
+  // Handle form submission for admin user creation
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateAdminForm()) {
-      // In a real application, you would submit the form data to your API
-      // For demonstration purposes, we'll just show an alert
-      alert('Database and admin user setup submitted successfully!');
+    
+    if (!validateAdminForm()) {
+      return;
+    }
+    
+    setIsProcessing(true);
+    
+    try {
+      const dbConfig: DatabaseConnectionConfig = {
+        hostname: formData.hostname,
+        port: parseInt(formData.port),
+        database: formData.database,
+        username: formData.username,
+        password: formData.password
+      };
       
-      // Here you would make an API call to set up the database and create the admin user
-      // For example: await api.post('/api/setup', formData);
+      const adminConfig: AdminUserConfig = {
+        username: formData.adminUsername,
+        email: formData.adminEmail,
+        password: formData.adminPassword
+      };
       
-      // Redirect to the dashboard or show a success message
-      console.log('Form submitted:', formData);
+      const result = await createAdminUser(dbConfig, adminConfig);
+      
+      setDialog({
+        isOpen: true,
+        title: result.success ? 'Success' : 'Error',
+        message: result.success 
+          ? 'Admin user created successfully! You can now log in with your credentials.'
+          : `Admin user creation failed: ${result.message}`,
+        isSuccess: result.success,
+        onConfirm: result.success ? 
+          (() => {
+            // In a real application, this would redirect to login page
+            window.location.href = '/'; 
+          }) : 
+          null,
+        confirmText: result.success ? 'Go to Login' : 'OK'
+      });
+      
+    } catch (error) {
+      setDialog({
+        isOpen: true,
+        title: 'Error',
+        message: `An unexpected error occurred: ${error.message || 'Unknown error'}`,
+        isSuccess: false,
+        onConfirm: null,
+        confirmText: 'OK'
+      });
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -134,12 +359,17 @@ const DatabaseSetup: React.FC = () => {
     setCurrentStep(1);
   };
 
+  // Close dialog
+  const handleCloseDialog = () => {
+    setDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <div className="setup-container">
       <header className="setup-header">
         <div className="logo-container">
           <img src="./logo-small.svg" alt="logo" width="60px" />
-          <h1 className="app-title">CMDB</h1>
+          <h1 className="app-title">InvenTrack</h1>
           <p className="app-subtitle">Setup Wizard</p>
         </div>
       </header>
@@ -197,7 +427,7 @@ const DatabaseSetup: React.FC = () => {
                   name="database"
                   value={formData.database}
                   onChange={handleChange}
-                  placeholder="e.g., cmdb"
+                  placeholder="e.g., inventrack"
                   className={errors.database ? 'error' : ''}
                 />
                 {errors.database && <div className="error-message">{errors.database}</div>}
@@ -236,14 +466,34 @@ const DatabaseSetup: React.FC = () => {
               </div>
 
               <div className="form-actions">
-                <button type="submit" className="primary-btn">Next</button>
+                <button 
+                  type="button" 
+                  className="secondary-btn" 
+                  onClick={handleTestConnection}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? 'Testing...' : 'Test Connection'}
+                </button>
+                <button 
+                  type="submit" 
+                  className="primary-btn"
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? 'Processing...' : 'Next'}
+                </button>
               </div>
+              
+              {isDbConnected && (
+                <div className="connection-status success">
+                  <span className="status-icon">✓</span> Database schema created successfully
+                </div>
+              )}
             </form>
           ) : (
             <form onSubmit={handleSubmit} className="setup-form">
               <h2>Create Admin User</h2>
               <p className="form-description">
-                Create your administrator account. This account will have full access to the CMDB system.
+                Create your administrator account. This account will have full access to the InvenTrack system.
               </p>
 
               <div className="form-group">
@@ -307,8 +557,12 @@ const DatabaseSetup: React.FC = () => {
               </div>
 
               <div className="form-actions">
-                <button type="button" className="secondary-btn" onClick={handleBack}>Back</button>
-                <button type="submit" className="primary-btn">Create Account</button>
+                <button type="button" className="secondary-btn" onClick={handleBack} disabled={isProcessing}>
+                  Back
+                </button>
+                <button type="submit" className="primary-btn" disabled={isProcessing}>
+                  {isProcessing ? 'Creating Account...' : 'Create Account'}
+                </button>
               </div>
             </form>
           )}
@@ -318,8 +572,20 @@ const DatabaseSetup: React.FC = () => {
       <footer className="setup-footer">
         <p>&copy; {new Date().getFullYear()} Witold Mikołajczak & Dawid Skrzypacz. All rights reserved.</p>
       </footer>
+
+      {/* Dialog for messages and confirmations */}
+      <Dialog
+        isOpen={dialog.isOpen}
+        title={dialog.title}
+        message={dialog.message}
+        isSuccess={dialog.isSuccess}
+        onClose={handleCloseDialog}
+        onConfirm={dialog.onConfirm}
+        confirmText={dialog.confirmText}
+      />
     </div>
   );
 };
 
 export default DatabaseSetup;
+                 
