@@ -2,6 +2,7 @@
 import { Controller, Post, Body, HttpException, HttpStatus, Get } from '@nestjs/common';
 import { DatabaseService, DatabaseConnectionConfig, AdminUserConfig } from './database.service';
 import { DatabaseConfigService } from './database-config.service';
+import { Public } from '../auth/auth.guard';
 
 @Controller('database')
 export class DatabaseController {
@@ -10,12 +11,14 @@ export class DatabaseController {
     private readonly databaseConfigService: DatabaseConfigService
   ) {}
 
+
   @Get('status')
   async getStatus() {
     return {
       isConfigured: this.databaseConfigService.isDatabaseConfigured()
     };
   }
+
 
   @Post('test-connection')
   async testConnection(@Body() config: DatabaseConnectionConfig) {
@@ -43,6 +46,7 @@ export class DatabaseController {
     }
   }
 
+
   @Post('execute-schema')
   async executeSchema(@Body() config: DatabaseConnectionConfig) {
     const result = await this.databaseService.executeDatabaseSchema(config);
@@ -53,6 +57,7 @@ export class DatabaseController {
     
     return result;
   }
+
 
   @Post('create-admin')
   async createAdminUser(

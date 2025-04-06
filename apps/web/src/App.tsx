@@ -4,15 +4,20 @@ import DatabaseSetup from './pages/DatabaseSetup'
 import Dashboard from './pages/Dashboard'
 import { checkDatabaseStatus } from './api/apiClient'
 import { databaseConfigService } from './services/databaseConfigService'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
-function App() {
+function AppContent() {
+  // Get auth context
+  const { isAuthenticated } = useAuth();
+  
   // State to track database configuration status
   const [isDatabaseConfigured, setIsDatabaseConfigured] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Simple state-based routing (in a real app, you'd use react-router or similar)
-  const [currentPage, setCurrentPage] = useState('loading'); // Start with loading state
+  // Simple state-based routing
+  const [currentPage, setCurrentPage] = useState('loading');
 
   // Check database configuration status on startup
   useEffect(() => {
@@ -84,8 +89,20 @@ function App() {
       {!isDatabaseConfigured && currentPage === 'database-setup' && 
         <DatabaseSetup onSetupComplete={handleSetupComplete} />}
       
-      {(isDatabaseConfigured || currentPage === 'dashboard') && <Dashboard />}
+      {(isDatabaseConfigured || currentPage === 'dashboard') && (
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      )}
     </div>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

@@ -1,4 +1,5 @@
 // apps/web/src/api/apiClient.ts
+import { authService } from '../services/authService';
 
 // Base API URL - in a real app, this would be from environment variables
 const API_BASE_URL = 'http://localhost:3001';
@@ -19,7 +20,23 @@ export interface AdminUserConfig {
   password: string;
 }
 
-
+/**
+ * Helper function to include auth headers in requests
+ */
+const getHeaders = (contentType = true) => {
+  const headers: Record<string, string> = {};
+  
+  if (contentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+  
+  const authHeader = authService.getAuthHeader();
+  if (authHeader) {
+    headers['Authorization'] = authHeader.Authorization;
+  }
+  
+  return headers;
+};
 
 /**
  * Check database configuration status
@@ -40,6 +57,7 @@ export const checkDatabaseStatus = async (): Promise<{
       return { isConfigured: false };
     }
   };
+
 /**
  * Test the database connection with provided credentials
  */
@@ -50,9 +68,7 @@ export const testDatabaseConnection = async (config: DatabaseConnectionConfig): 
   try {
     const response = await fetch(`${API_BASE_URL}/database/test-connection`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
       body: JSON.stringify(config),
     });
 
@@ -84,9 +100,7 @@ export const executeDatabaseSchema = async (config: DatabaseConnectionConfig): P
   try {
     const response = await fetch(`${API_BASE_URL}/database/execute-schema`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
       body: JSON.stringify(config),
     });
 
@@ -121,9 +135,7 @@ export const createAdminUser = async (
   try {
     const response = await fetch(`${API_BASE_URL}/database/create-admin`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getHeaders(),
       body: JSON.stringify({
         dbConfig,
         adminConfig,
@@ -145,5 +157,100 @@ export const createAdminUser = async (
       success: false,
       message: `Request failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
     };
+  }
+};
+
+/**
+ * Get the list of assets
+ */
+export const getAssets = async (): Promise<any> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/assets`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch assets');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get the list of users
+ */
+export const getUsers = async (): Promise<any> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch users');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get the list of departments
+ */
+export const getDepartments = async (): Promise<any> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/departments`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch departments');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Generic API request function with authentication
+ */
+export const apiRequest = async (
+  endpoint: string, 
+  method = 'GET', 
+  data?: any
+): Promise<any> => {
+  try {
+    const options: RequestInit = {
+      method,
+      headers: getHeaders(!!data),
+    };
+
+    if (data) {
+      options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(`${API_BASE_URL}/${endpoint}`, options);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Request to ${endpoint} failed`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`API request to ${endpoint} failed:`, error);
+    throw error;
   }
 };

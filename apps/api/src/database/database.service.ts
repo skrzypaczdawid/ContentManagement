@@ -21,9 +21,17 @@ export interface AdminUserConfig {
 @Injectable()
 export class DatabaseService {
   private pool: Pool | null = null;
-/**
- * Initialize with existing configuration
- */
+
+  /**
+   * Get the database connection pool
+   */
+  getPool(): Pool | null {
+    return this.pool;
+  }
+
+  /**
+   * Initialize with existing configuration
+   */
   async initializeFromConfig(config: DatabaseConnectionConfig): Promise<boolean> {
     try {
       this.initializeConnection(config);
