@@ -1,8 +1,16 @@
 // apps/api/src/auth/auth.guard.ts
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, SetMetadata } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { Reflector } from '@nestjs/core';
+
+// Define metadata keys
+export const IS_PUBLIC_KEY = 'isPublic';
+export const ROLES_KEY = 'roles';
+
+// Create decorators
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -16,7 +24,7 @@ export class JwtAuthGuard implements CanActivate {
     const token = this.extractTokenFromHeader(request);
     
     // Check if the endpoint is public
-    const isPublic = this.reflector.get<boolean>('isPublic', context.getHandler());
+    const isPublic = this.reflector.get<boolean>(IS_PUBLIC_KEY, context.getHandler());
     if (isPublic) {
       return true;
     }
@@ -46,7 +54,7 @@ export class RolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.get<string[]>('roles', context.getHandler());
+    const requiredRoles = this.reflector.get<string[]>(ROLES_KEY, context.getHandler());
     if (!requiredRoles) {
       return true;
     }
@@ -55,6 +63,3 @@ export class RolesGuard implements CanActivate {
     return requiredRoles.some(role => user.role === role);
   }
 }
-
-export const Public = () => Reflector.createDecorator<boolean>('isPublic', true);
-export const Roles = (...roles: string[]) => Reflector.createDecorator<string[]>('roles', roles);
