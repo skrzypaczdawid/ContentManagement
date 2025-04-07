@@ -18,6 +18,7 @@ import DepartmentsPage from './DepartmentsPage';
 import AssignmentsPage from './AssignmentsPage';
 import ReportsPage from './ReportsPage';
 import SettingsPage from './SettingsPage';
+import ProfilePage from './ProfilePage';
 
 // Navigation items type
 interface NavItem {
@@ -72,6 +73,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: '⚙️',
     component: SettingsPage,
     adminOnly: true
+  },
+  {
+    id: 'profile',
+    label: 'Profile',
+    icon: '👤',
+    component: ProfilePage
   }
 ];
 
@@ -231,6 +238,7 @@ function OverviewContent() {
 const Dashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeNavItem, setActiveNavItem] = useState('overview');
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // Filter navigation items based on user role
   const filteredNavItems = NAV_ITEMS.filter(
@@ -242,6 +250,21 @@ const Dashboard: React.FC = () => {
     item => item.id === activeNavItem
   )?.component || OverviewContent;
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.user-menu')) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   return (
     <div className="dashboard-container">
       <header className="dashboard-header">
@@ -250,13 +273,38 @@ const Dashboard: React.FC = () => {
           <h1 className="app-title">InvenTrack</h1>
         </div>
         <div className="user-menu">
-          <div className="user-info">
-            <span className="user-name">{user?.firstName} {user?.lastName}</span>
-            <span className="user-role">{user?.role}</span>
+          <div 
+            className="user-info-container" 
+            onClick={() => setShowUserMenu(!showUserMenu)}
+          >
+            <div className="user-info">
+              <span className="user-name">{user?.firstName} {user?.lastName}</span>
+              <span className="user-role">{user?.role}</span>
+            </div>
+            <span className="dropdown-arrow">▼</span>
           </div>
-          <button className="logout-btn" onClick={logout}>
-            Logout
-          </button>
+          {showUserMenu && (
+            <div className="user-dropdown">
+              <div 
+                className="dropdown-item"
+                onClick={() => {
+                  setActiveNavItem('profile');
+                  setShowUserMenu(false);
+                }}
+              >
+                <span className="dropdown-icon">👤</span>
+                <span>Profile</span>
+              </div>
+              <div className="dropdown-divider"></div>
+              <div 
+                className="dropdown-item logout-item"
+                onClick={logout}
+              >
+                <span className="dropdown-icon">🚪</span>
+                <span>Logout</span>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 
@@ -279,7 +327,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="dashboard-main">
-          <ActiveComponent />
+          {activeNavItem === 'profile' ? <ProfilePage /> : <ActiveComponent />}
         </div>
       </main>
 

@@ -1,6 +1,6 @@
 // apps/web/src/contexts/AuthContext.tsx
 import React, { createContext, useState, useEffect, useContext, ReactNode, useCallback } from 'react';
-import { authService, User } from '../services/authService';
+import { authService, User, ProfileUpdateData } from '../services/authService';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +11,7 @@ interface AuthContextType {
   register: (userData: any) => Promise<void>;
   hasRole: (role: string) => boolean;
   updateUser: (updatedUser?: User | null) => void;
+  updateUserProfile: (profileData: ProfileUpdateData) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -99,6 +100,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Update user profile
+  const updateUserProfile = async (profileData: ProfileUpdateData) => {
+    setIsLoading(true);
+    try {
+      const updatedUser = await authService.updateProfile(profileData);
+      setUser(updatedUser);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Check if user has a specific role
   const hasRole = (role: string) => {
     return !!user && user.role === role;
@@ -112,7 +124,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     register,
     hasRole,
-    updateUser
+    updateUser,
+    updateUserProfile
   };
 
   return (

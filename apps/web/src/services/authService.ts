@@ -24,11 +24,18 @@ export interface User {
   firstName: string;
   lastName: string;
   role: string;
+  departmentId?: number;
 }
 
 export interface AuthResponse {
   access_token: string;
   user: User;
+}
+
+export interface ProfileUpdateData {
+  firstName: string;
+  lastName: string;
+  email: string;
 }
 
 // Local storage keys
@@ -183,5 +190,43 @@ export const authService = {
   getAuthHeader(): { Authorization: string } | undefined {
     const token = this.getToken();
     return token ? { Authorization: `Bearer ${token}` } : undefined;
-  }
+  },
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(profileData: ProfileUpdateData): Promise<User> {
+    const token = this.getToken();
+    
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(profileData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to update profile');
+      }
+
+      const data = await response.json();
+      
+      // Update stored user data
+      const updatedUser = data.user;
+      localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+      
+      return updatedUser;
+    } catch (error) {
+      console.error('Profile update error:', error);
+      throw error;
+    }
+  },
 };

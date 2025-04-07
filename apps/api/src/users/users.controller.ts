@@ -1,7 +1,7 @@
 // apps/api/src/users/users.controller.ts
-import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
-import { UsersService } from '../users/users.service';
-import { Public } from '../auth/auth.guard';
+import { Controller, Get, Put, Body, Param, HttpException, HttpStatus, UseGuards, Request } from '@nestjs/common';
+import { UsersService, UpdateUserProfileDto } from '../users/users.service';
+import { Public, JwtAuthGuard } from '../auth/auth.guard';
 
 @Controller('users')
 export class UsersController {
@@ -28,6 +28,29 @@ export class UsersController {
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to fetch users count',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile')
+  async updateProfile(@Request() req, @Body() updateProfileDto: UpdateUserProfileDto) {
+    try {
+      // Get user ID from JWT token payload
+      // The JWT payload uses 'sub' for the user ID as per the JwtPayload interface in auth.service.ts
+      const userId = req.user.sub;
+      
+      // Update user profile
+      const updatedUser = await this.usersService.updateUserProfile(userId, updateProfileDto);
+      
+      return {
+        message: 'Profile updated successfully',
+        user: updatedUser
+      };
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to update profile',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
