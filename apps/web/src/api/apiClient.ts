@@ -300,3 +300,118 @@ export const getUsersCountThisWeek = async (): Promise<number> => {
     return 0;
   }
 };
+
+/**
+ * Get the count of departments
+ */
+export const getDepartmentsCount = async (): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/departments/count`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch departments count');
+    }
+
+    const data = await response.json();
+    return data.count || 0;
+  } catch (error) {
+    console.error('API request failed:', error);
+    // Return 0 as a fallback
+    return 0;
+  }
+};
+
+/**
+ * Get the count of assets
+ */
+export const getAssetsCount = async (): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/assets/count`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch assets count');
+    }
+
+    const data = await response.json();
+    return data.count || 0;
+  } catch (error) {
+    console.error('API request failed:', error);
+    // Return 0 as a fallback
+    return 0;
+  }
+};
+
+/**
+ * Get the count of assets added this month
+ */
+export const getAssetsCountThisMonth = async (): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/assets/countMonth`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch monthly assets count');
+    }
+
+    const data = await response.json();
+    return data.count || 0;
+  } catch (error) {
+    console.error('API request failed:', error);
+    // Return 0 as a fallback
+    return 0;
+  }
+};
+
+/**
+ * Get the count of active assignments
+ */
+export const getActiveAssignmentsCount = async (): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/assignments/count`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch active assignments count');
+    }
+
+    const data = await response.json();
+    return data.count || 0;
+  } catch (error) {
+    console.error('API request failed:', error);
+    // Return 0 as a fallback
+    return 0;
+  }
+};
+
+/**
+ * Get the count of assignments created this week
+ */
+export const getAssignmentsCountThisWeek = async (): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/assignments/countWeek`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch weekly assignments count');
+    }
+
+    const data = await response.json();
+    return data.count || 0;
+  } catch (error) {
+    console.error('API request failed:', error);
+    // Return 0 as a fallback
+    return 0;
+  }
+};

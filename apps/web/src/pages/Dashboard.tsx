@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/Dashboard.css';
 import { useAuth } from '../contexts/AuthContext';
-import { getUsersCount, getUsersCountThisWeek } from '../api/apiClient';
+import { 
+  getUsersCount, 
+  getUsersCountThisWeek,
+  getDepartmentsCount,
+  getAssetsCount,
+  getAssetsCountThisMonth,
+  getActiveAssignmentsCount,
+  getAssignmentsCountThisWeek
+} from '../api/apiClient';
 
 // Import page components
 import AssetsPage from './AssetsPage';
@@ -71,18 +79,41 @@ const NAV_ITEMS: NavItem[] = [
 function OverviewContent() {
   const [usersCount, setUsersCount] = useState<number | null>(null);
   const [usersCountWeek, setUsersCountWeek] = useState<number | null>(null);
+  const [departmentsCount, setDepartmentsCount] = useState<number | null>(null);
+  const [assetsCount, setAssetsCount] = useState<number | null>(null);
+  const [assetsCountMonth, setAssetsCountMonth] = useState<number | null>(null);
+  const [assignmentsCount, setAssignmentsCount] = useState<number | null>(null);
+  const [assignmentsCountWeek, setAssignmentsCountWeek] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [count, weeklyCount] = await Promise.all([
+        const [
+          userCount, 
+          weeklyUserCount,
+          deptCount,
+          assetCount,
+          monthlyAssetCount,
+          activeAssignCount,
+          weeklyAssignCount
+        ] = await Promise.all([
           getUsersCount(),
-          getUsersCountThisWeek()
+          getUsersCountThisWeek(),
+          getDepartmentsCount(),
+          getAssetsCount(),
+          getAssetsCountThisMonth(),
+          getActiveAssignmentsCount(),
+          getAssignmentsCountThisWeek()
         ]);
         
-        setUsersCount(count);
-        setUsersCountWeek(weeklyCount);
+        setUsersCount(userCount);
+        setUsersCountWeek(weeklyUserCount);
+        setDepartmentsCount(deptCount);
+        setAssetsCount(assetCount);
+        setAssetsCountMonth(monthlyAssetCount);
+        setAssignmentsCount(activeAssignCount);
+        setAssignmentsCountWeek(weeklyAssignCount);
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -103,17 +134,17 @@ function OverviewContent() {
       <div className="dashboard-stats">
         <div className="stat-card">
           <h3>Total Assets</h3>
-          <p className="stat-value">45</p>
-          <p className="stat-detail">+5 this month</p>
+          <p className="stat-value">{isLoading ? '...' : assetsCount}</p>
+          <p className="stat-detail">{isLoading ? '...' : `+${assetsCountMonth} this month`}</p>
         </div>
         <div className="stat-card">
           <h3>Active Assignments</h3>
-          <p className="stat-value">32</p>
-          <p className="stat-detail">+3 this week</p>
+          <p className="stat-value">{isLoading ? '...' : assignmentsCount}</p>
+          <p className="stat-detail">{isLoading ? '...' : `+${assignmentsCountWeek} this week`}</p>
         </div>
         <div className="stat-card">
           <h3>Departments</h3>
-          <p className="stat-value">6</p>
+          <p className="stat-value">{isLoading ? '...' : departmentsCount}</p>
         </div>
         <div className="stat-card">
           <h3>Users</h3>

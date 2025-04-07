@@ -7,6 +7,8 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { UsersModule } from './users/users.module';
+import { AssetsModule } from './assets/assets.module';
+import { AssignmentsModule } from './assignments/assignments.module';
 import { JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 
 @Module({
@@ -14,7 +16,9 @@ import { JwtAuthGuard, RolesGuard } from './auth/auth.guard';
     DatabaseModule, 
     AuthModule,
     DepartmentsModule,
-    UsersModule
+    UsersModule,
+    AssetsModule,
+    AssignmentsModule
   ],
   controllers: [AppController],
   providers: [

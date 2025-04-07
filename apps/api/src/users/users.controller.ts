@@ -1,6 +1,6 @@
 // apps/api/src/users/users.controller.ts
 import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { UsersService } from '../users/users.service';
 import { Public } from '../auth/auth.guard';
 
 @Controller('users')

@@ -36,4 +36,32 @@ export class DepartmentsService {
       if (client) client.release();
     }
   }
+
+  /**
+   * Get the total count of departments
+   */
+  async getDepartmentsCount() {
+    let client: PoolClient | null = null;
+    
+    try {
+      // Get database connection
+      if (!this.databaseService.getPool()) {
+        throw new Error('Database not configured');
+      }
+      
+      client = await this.databaseService.getPool()!.connect();
+      
+      // Query departments count
+      const result = await client?.query(
+        'SELECT COUNT(*) as count FROM cmdb.departments'
+      );
+      
+      return { count: parseInt(result?.rows[0].count) || 0 };
+    } catch (error) {
+      this.logger.error(`Failed to fetch departments count: ${error.message}`);
+      throw error;
+    } finally {
+      if (client) client.release();
+    }
+  }
 }
