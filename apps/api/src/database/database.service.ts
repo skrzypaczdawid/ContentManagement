@@ -233,7 +233,7 @@ export class DatabaseService {
       await client.query(
         `INSERT INTO cmdb.users (
           username, password_hash, email, first_name, last_name, 
-          employee_id, role, status, position_title
+          employee_id, role_id, status_id, position_title
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9
         )`,
@@ -244,8 +244,8 @@ export class DatabaseService {
           'Admin', // First name
           'User',  // Last name
           'ADMIN001', // Employee ID
-          'admin', // Role
-          'active', // Status
+          1, // role_id (1 for admin role)
+          1, // status_id (1 for active status)
           'System Administrator' // Position
         ]
       );

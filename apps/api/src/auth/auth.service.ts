@@ -53,7 +53,7 @@ export class AuthService {
       
       // Find the user
       const result = await client?.query(
-        'SELECT id, username, password_hash, email, first_name, last_name, role, status FROM cmdb.users WHERE username = $1',
+        'SELECT u.id, u.username, u.password_hash, u.email, u.first_name, u.last_name, r.name as role, s.name as status FROM cmdb.users u LEFT JOIN cmdb.roles r ON u.role_id = r.id LEFT JOIN cmdb.user_statuses s ON u.status_id = s.id WHERE u.username = $1',
         [username]
       );
       
@@ -139,10 +139,10 @@ export class AuthService {
       const result = await client?.query(
         `INSERT INTO cmdb.users (
           username, password_hash, email, first_name, last_name, 
-          department_id, role, status
+          department_id, role_id, status_id
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8
-        ) RETURNING id, username, email, first_name, last_name, role`,
+        ) RETURNING id, username, email, first_name, last_name, role_id`,
         [
           userData.username,
           passwordHash,
@@ -150,8 +150,8 @@ export class AuthService {
           userData.firstName,
           userData.lastName,
           userData.departmentId || null,
-          'standard_user', // Default role
-          'active', // Default status
+          2, // 2 for standard_user role
+          1, // 1 for active status
         ]
       );
       
@@ -162,7 +162,7 @@ export class AuthService {
         sub: newUser.id,
         username: newUser.username,
         email: newUser.email,
-        role: newUser.role,
+        role: 'standard_user', // Default role
       };
       
       return {
@@ -173,7 +173,7 @@ export class AuthService {
           email: newUser.email,
           firstName: newUser.first_name,
           lastName: newUser.last_name,
-          role: newUser.role,
+          role: 'standard_user', // Default role
         },
       };
     } catch (error) {

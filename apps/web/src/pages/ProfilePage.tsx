@@ -3,13 +3,12 @@ import { useAuth } from '../contexts/AuthContext';
 import '../styles/ProfilePage.css';
 
 const ProfilePage: React.FC = () => {
-  const { user, updateUserProfile, uploadProfilePicture, deleteProfilePicture, getProfilePictureUrl } = useAuth();
+  const { user, updateUserProfile, uploadProfilePicture, deleteProfilePicture, getProfilePictureUrl, setUser } = useAuth();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
     email: '',
-    department: '',
-    role: ''
+    department: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
@@ -27,8 +26,7 @@ const ProfilePage: React.FC = () => {
         firstName: user.firstName || '',
         lastName: user.lastName || '',
         email: user.email || '',
-        department: user.departmentId ? `Department ${user.departmentId}` : '',
-        role: user.role || ''
+        department: user.departmentId ? `Department ${user.departmentId}` : ''
       });
       
       // Set profile picture URL if available
@@ -119,11 +117,16 @@ const ProfilePage: React.FC = () => {
 
     try {
       // Only send the fields that can be updated
-      await updateUserProfile({
+      const updatedUser = await updateUserProfile({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email
       });
+      
+      // Update the user state with the returned user object
+      if (updatedUser) {
+        setUser(updatedUser);
+      }
       
       // If there's a profile picture to upload, do it after profile update
       if (profilePicture) {
@@ -299,8 +302,7 @@ const ProfilePage: React.FC = () => {
             type="text"
             id="role"
             name="role"
-            value={formData.role}
-            onChange={handleChange}
+            value={user?.role || ''}
             disabled
           />
           <small>Role can only be changed by administrators</small>

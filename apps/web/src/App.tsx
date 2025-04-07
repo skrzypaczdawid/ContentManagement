@@ -8,6 +8,8 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import './App.css'
 
+const API_BASE_URL = 'http://localhost:3001'; // Replace with your API base URL
+
 function AppContent() {
   // Get auth context with the new updateUser method
   const { isAuthenticated, updateUser } = useAuth();
@@ -15,14 +17,39 @@ function AppContent() {
   // State to track database configuration status
   const [isDatabaseConfigured, setIsDatabaseConfigured] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [apiReady, setApiReady] = useState(false);
   
   // Simple state-based routing
   const [currentPage, setCurrentPage] = useState('loading');
+
+  // Check if API is ready
+  const checkApiReady = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/status`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.isConfigured !== undefined) {
+          setApiReady(true);
+          return true;
+        }
+      }
+    } catch (error) {
+      console.log('API not ready yet:', error);
+    }
+    return false;
+  };
 
   // Check database configuration status on startup
   useEffect(() => {
     const checkDbStatus = async () => {
       try {
+        // Wait for API to be ready
+        while (!apiReady) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          const isReady = await checkApiReady();
+          if (isReady) break;
+        }
+
         // Check local storage first for immediate decision
         const isLocallyConfigured = databaseConfigService.isDatabaseConfigured();
         
@@ -60,7 +87,7 @@ function AppContent() {
     };
 
     checkDbStatus();
-  }, [updateUser]);
+  }, [updateUser, apiReady]);
 
   // Function to navigate between pages
   const navigateTo = (page: string) => {
@@ -79,6 +106,16 @@ function AppContent() {
       <div className="loading-container">
         <div className="loading-spinner"></div>
         <p>Loading application...</p>
+      </div>
+    );
+  }
+
+  // Show loading spinner if API is not ready
+  if (!apiReady) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>Waiting for API server to start...</p>
       </div>
     );
   }

@@ -8,16 +8,11 @@ import { DatabaseConfigService } from './database-config.service';
   controllers: [DatabaseController],
   providers: [
     DatabaseService,
-    DatabaseConfigService,
-    {
-      provide: 'DATABASE_SERVICE',
-      useExisting: DatabaseService
-    }
+    DatabaseConfigService
   ],
   exports: [
     DatabaseService,
-    DatabaseConfigService,
-    'DATABASE_SERVICE'
+    DatabaseConfigService
   ],
 })
 export class DatabaseModule {}

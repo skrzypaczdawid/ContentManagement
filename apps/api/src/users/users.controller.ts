@@ -8,7 +8,6 @@ import {
   Put,
   Delete,
   Request,
-  UseGuards,
   HttpException,
   HttpStatus,
   UseInterceptors,
@@ -16,12 +15,13 @@ import {
   Res
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UsersService, UpdateUserProfileDto } from './users.service';
-import { JwtAuthGuard } from '../auth/auth.guard';
-import { Public, Roles } from '../auth/auth.guard';
+import { UsersService } from './users.service';
+import { UpdateUserProfileDto } from './dto/update-user-profile.dto';
 import { Response } from 'express';
+import { Public, Roles } from '../auth/auth.guard';
 
 @Controller('users')
+@Roles('admin')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -45,33 +45,33 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get()
   async getAllUsers(@Request() req) {
     try {
-      if (req.user.role !== 'admin') {
-        throw new HttpException('Only administrators can view all users', HttpStatus.FORBIDDEN);
-      }
       return await this.usersService.getAllUsers();
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('roles')
   async getUserRoles(@Request() req) {
     try {
-      if (req.user.role !== 'admin') {
-        throw new HttpException('Only administrators can view user roles', HttpStatus.FORBIDDEN);
-      }
       return await this.usersService.getUserRoles();
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
-  @UseGuards(JwtAuthGuard)
+  @Get('statuses')
+  async getUserStatuses(@Request() req) {
+    try {
+      return await this.usersService.getUserStatuses();
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
   @Put('profile')
   async updateProfile(@Request() req, @Body() updateProfileDto: UpdateUserProfileDto) {
     try {
@@ -86,7 +86,6 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, Roles('admin'))
   @Put(':id')
   async updateUser(@Param('id') id: string, @Body() userData: any, @Request() req) {
     try {
@@ -96,7 +95,6 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
   @Post('profile-picture')
   @UseInterceptors(
     FileInterceptor('profilePicture', {
@@ -132,7 +130,6 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('profile-picture')
   async getProfilePicture(@Request() req, @Res() res: Response) {
     try {
@@ -158,7 +155,6 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('profile-picture/:userId')
   async getUserProfilePicture(@Param('userId') userId: string, @Res() res: Response) {
     try {
@@ -183,7 +179,6 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
   @Delete('profile-picture')
   async deleteProfilePicture(@Request() req) {
     try {
@@ -194,7 +189,6 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, Roles('admin'))
   @Post(':id/profile-picture')
   @UseInterceptors(
     FileInterceptor('profilePicture', {
@@ -216,7 +210,7 @@ export class UsersController {
       }
     })
   )
-  async uploadUserProfilePicture(
+  async uploadUserPicture(
     @Param('id') userId: string,
     @UploadedFile() file: Express.Multer.File,
     @Request() req
@@ -228,9 +222,8 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, Roles('admin'))
   @Delete(':id/profile-picture')
-  async deleteUserProfilePicture(@Param('id') userId: string, @Request() req) {
+  async deleteUserPicture(@Param('id') userId: string, @Request() req) {
     try {
       return await this.usersService.deleteProfilePicture(userId);
     } catch (error) {
@@ -238,7 +231,6 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard, Roles('admin'))
   @Delete(':id')
   async deleteUser(@Param('id') id: string, @Request() req) {
     try {

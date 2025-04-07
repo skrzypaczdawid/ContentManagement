@@ -1,18 +1,22 @@
 // apps/api/src/users/users.module.ts
 import { Module } from '@nestjs/common';
-import { UsersController } from './users.controller';
-import { UsersService } from './users.service';
 import { DatabaseModule } from '../database/database.module';
-import { AuthModule } from '../auth/auth.module';
+import { UsersService } from './users.service';
 import { MulterModule } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
+import { UsersController } from './users.controller';
+import { JwtModule } from '@nestjs/jwt';
+import { JWT_SECRET } from '../auth/auth.constants';
 
 @Module({
   imports: [
-    DatabaseModule, 
-    AuthModule,
+    DatabaseModule,
     MulterModule.register({
       storage: memoryStorage(),
+    }),
+    JwtModule.register({
+      secret: JWT_SECRET,
+      signOptions: { expiresIn: '8h' },
     }),
   ],
   controllers: [UsersController],

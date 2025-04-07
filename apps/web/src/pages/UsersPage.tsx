@@ -9,10 +9,13 @@ interface User {
   firstName: string;
   lastName: string;
   email: string;
-  role: string;
+  roleId: number;
+  statusId: number;
   department: string;
   departmentId?: string;
-  status: string;
+  role?: string;
+  status?: string;
+  profilePicture?: string;
 }
 
 interface Department {
@@ -22,34 +25,32 @@ interface Department {
 }
 
 interface Role {
-  id: string;
+  id: number | string;
   name: string;
+  description?: string;
+}
+
+interface Status {
+  id: number | string;
+  name: string;
+  description?: string;
 }
 
 // Helper function to fetch profile image
 const fetchProfileImage = async (userId: string): Promise<string | null> => {
   try {
-    const token = localStorage.getItem('auth_token');
-    if (!token) return null;
-    
-    // Create a URL with the user ID and timestamp to prevent caching
-    const timestamp = new Date().getTime();
-    const url = new URL(`http://localhost:3001/users/profile-picture/${userId}`);
-    url.searchParams.append('t', timestamp.toString());
-    
-    const response = await fetch(url.toString(), {
-      headers: {
-        'Authorization': `Bearer ${token}`
+    const response = await fetch(`http://localhost:3001/users/profile-picture/${userId}`);
+    if (!response.ok) {
+      // If 404, return null (no profile picture)
+      if (response.status === 404) {
+        return null;
       }
-    });
-    
-    if (response.ok) {
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
+      throw new Error(`Failed to fetch profile picture: ${response.status}`);
     }
-    return null;
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
   } catch (error) {
-    console.error('Error fetching user profile image:', error);
+    console.error('Error fetching profile picture:', error);
     return null;
   }
 };
@@ -70,6 +71,7 @@ const UsersPage: React.FC = () => {
   const [editedUser, setEditedUser] = useState<User | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
+  const [statuses, setStatuses] = useState<Status[]>([]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [modalMessage, setModalMessage] = useState<{title: string, text: string, type: string} | null>(null);
   const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
@@ -100,22 +102,34 @@ const UsersPage: React.FC = () => {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch users: ${response.status}`);
         }
-        
+
         const data = await response.json();
         setUsers(data);
         setFilteredUsers(data);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        setError('Failed to load users. Please try again later.');
+
+        // Fetch profile pictures for all users
+        const imagePromises = data.map(user => 
+          fetchProfileImage(user.id).then(url => ({ userId: user.id, url }))
+        );
+        
+        const imageResults = await Promise.all(imagePromises);
+        const imageMap = imageResults.reduce((acc, { userId, url }) => {
+          acc[userId] = url;
+          return acc;
+        }, {} as Record<string, string | null>);
+        
+        setUserImages(imageMap);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch users');
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     fetchUsers();
   }, []);
 
@@ -178,22 +192,74 @@ const UsersPage: React.FC = () => {
     fetchRoles();
   }, []);
 
-  // Fetch profile images for all users
+  // Fetch statuses from the API
   useEffect(() => {
-    const loadUserImages = async () => {
-      const images: Record<string, string | null> = {};
-      
-      for (const user of users) {
-        images[user.id] = await fetchProfileImage(user.id);
+    const fetchStatuses = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+        
+        const response = await fetch('http://localhost:3001/users/statuses', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch statuses: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setStatuses(data);
+      } catch (error) {
+        console.error('Error fetching statuses:', error);
+        // Set default statuses if API fails
+        setStatuses([
+          { id: 'active', name: 'Active' },
+          { id: 'inactive', name: 'Inactive' }
+        ]);
       }
-      
-      setUserImages(images);
     };
     
-    if (users.length > 0) {
-      loadUserImages();
+    fetchStatuses();
+  }, []);
+
+  // Update users list with profile pictures
+  const updateUsersWithProfilePictures = async (updatedUser: User) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      const response = await fetch(`http://localhost:3001/users/${updatedUser.id}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch updated user: ${response.status}`);
+      }
+
+      const userData = await response.json();
+      const updatedUsers = users.map(u => u.id === userData.id ? userData : u);
+      setUsers(updatedUsers);
+      setFilteredUsers(updatedUsers);
+
+      // Update profile picture if it exists
+      const profilePicture = await fetchProfileImage(userData.id);
+      if (profilePicture) {
+        setUserImages(prev => ({
+          ...prev,
+          [userData.id]: profilePicture
+        }));
+      }
+    } catch (error) {
+      console.error('Error updating users list:', error);
     }
-  }, [users]);
+  };
 
   // Handle search and filtering
   useEffect(() => {
@@ -212,8 +278,10 @@ const UsersPage: React.FC = () => {
     
     // Apply role filter
     if (roleFilter !== 'All Roles') {
-      const filterValue = roleFilter === 'Admin' ? 'admin' : 'standard_user';
-      result = result.filter(user => user.role === filterValue);
+      const role = roles.find(r => r.name.toLowerCase() === roleFilter.toLowerCase());
+      if (role) {
+        result = result.filter(user => user.roleId === role.id);
+      }
     }
     
     setFilteredUsers(result);
@@ -271,7 +339,12 @@ const UsersPage: React.FC = () => {
       // Prepare user data for update
       const userData = {
         ...editedUser,
-        departmentId
+        departmentId: selectedDept?.id || null,
+        department: undefined,
+        roleId: editedUser.roleId ? parseInt(editedUser.roleId.toString()) : null,
+        statusId: editedUser.statusId ? parseInt(editedUser.statusId.toString()) : null,
+        role: undefined,
+        status: undefined
       };
       
       const response = await fetch(`http://localhost:3001/users/${editedUser.id}`, {
@@ -292,7 +365,9 @@ const UsersPage: React.FC = () => {
       // Update users list
       setUsers(users.map(u => u.id === updatedUser.id ? {
         ...updatedUser,
-        department: departments.find(d => d.id === updatedUser.departmentId)?.name || 'Unassigned'
+        department: departments.find(d => d.id === updatedUser.departmentId)?.name || 'Unassigned',
+        role: roles.find(r => r.id === updatedUser.roleId)?.name || 'Standard User',
+        status: statuses.find(s => s.id === updatedUser.statusId)?.name || 'Active'
       } : u));
       
       // Close modal and reset state
@@ -403,59 +478,50 @@ const UsersPage: React.FC = () => {
   };
 
   // Handle profile picture upload
-  const handleProfilePictureUpload = async () => {
-    if (!selectedFile || !editedUser) return;
-    
+  const handleProfilePictureUpload = async (userId: string, file: File) => {
     try {
       setUploadProgress(true);
       
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        setModalMessage({
-          title: 'Error',
-          text: 'Authentication token not found',
-          type: 'error'
-        });
-        return;
-      }
-      
       const formData = new FormData();
-      formData.append('profilePicture', selectedFile);
+      formData.append('profilePicture', file);
       
-      // Use the user ID from the edited user
-      const response = await fetch(`http://localhost:3001/users/${editedUser.id}/profile-picture`, {
+      const response = await fetch(`http://localhost:3001/users/${userId}/profile-picture`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         },
         body: formData
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to upload profile picture: ${response.status}`);
       }
-      
-      // Update user images
-      const newImageUrl = await fetchProfileImage(editedUser.id);
-      setUserImages(prev => ({
-        ...prev,
-        [editedUser.id]: newImageUrl
-      }));
-      
+
+      // Update the user's profile picture in the UI
+      const updatedUser = await response.json();
+      const updatedUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+      setUsers(updatedUsers);
+      setFilteredUsers(updatedUsers);
+
+      // Update profile picture in the images map
+      const profilePicture = await fetchProfileImage(updatedUser.id);
+      if (profilePicture) {
+        setUserImages(prev => ({
+          ...prev,
+          [updatedUser.id]: profilePicture
+        }));
+      }
+
       setModalMessage({
         title: 'Success',
         text: 'Profile picture uploaded successfully',
         type: 'success'
       });
-      
-      // Reset state
-      setSelectedFile(null);
-      setPreviewUrl(null);
     } catch (error) {
       console.error('Error uploading profile picture:', error);
       setModalMessage({
         title: 'Error',
-        text: error instanceof Error ? error.message : 'Failed to upload profile picture',
+        text: 'Failed to upload profile picture',
         type: 'error'
       });
     } finally {
@@ -463,58 +529,45 @@ const UsersPage: React.FC = () => {
     }
   };
 
-  // Handle profile picture delete
-  const handleProfilePictureDelete = async () => {
-    if (!editedUser) return;
-    
+  // Handle profile picture deletion
+  const handleDeleteProfilePicture = async (userId: string) => {
     try {
-      setUploadProgress(true);
-      
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        setModalMessage({
-          title: 'Error',
-          text: 'Authentication token not found',
-          type: 'error'
-        });
-        return;
-      }
-      
-      const response = await fetch(`http://localhost:3001/users/${editedUser.id}/profile-picture`, {
+      const response = await fetch(`http://localhost:3001/users/${userId}/profile-picture`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to delete profile picture: ${response.status}`);
       }
-      
-      // Update user images
-      setUserImages(prev => ({
-        ...prev,
-        [editedUser.id]: null
-      }));
-      
+
+      // Update the user's profile picture in the UI
+      const updatedUser = await response.json();
+      const updatedUsers = users.map(u => u.id === updatedUser.id ? updatedUser : u);
+      setUsers(updatedUsers);
+      setFilteredUsers(updatedUsers);
+
+      // Remove profile picture from the images map
+      setUserImages(prev => {
+        const newImages = { ...prev };
+        delete newImages[updatedUser.id];
+        return newImages;
+      });
+
       setModalMessage({
         title: 'Success',
         text: 'Profile picture deleted successfully',
         type: 'success'
       });
-      
-      // Reset state
-      setSelectedFile(null);
-      setPreviewUrl(null);
     } catch (error) {
       console.error('Error deleting profile picture:', error);
       setModalMessage({
         title: 'Error',
-        text: error instanceof Error ? error.message : 'Failed to delete profile picture',
+        text: 'Failed to delete profile picture',
         type: 'error'
       });
-    } finally {
-      setUploadProgress(false);
     }
   };
 
@@ -533,7 +586,16 @@ const UsersPage: React.FC = () => {
         <h1>User Management</h1>
         <div className="header-actions">
           {authUser?.role === 'admin' && (
-            <button className="primary-btn">+ Add New User</button>
+            <button 
+              className="primary-btn" 
+              onClick={() => {
+                setSelectedUser(null);
+                setEditedUser(null);
+                setIsEditMode(true);
+              }}
+            >
+              + Add New User
+            </button>
           )}
         </div>
       </header>
@@ -555,162 +617,315 @@ const UsersPage: React.FC = () => {
                 value={roleFilter}
                 onChange={handleRoleFilterChange}
               >
-                <option>All Roles</option>
-                <option>Admin</option>
-                <option>Standard User</option>
+                <option value="All Roles">All Roles</option>
+                {roles.map(role => (
+                  <option key={role.id} value={role.name}>
+                    {role.name}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          {isLoading ? (
-            <div className="loading-container">
-              <p>Loading users...</p>
-            </div>
-          ) : error ? (
-            <div className="error-container">
-              <p>{error}</p>
-            </div>
-          ) : (
-            <table className="users-table">
-              <thead>
-                <tr>
-                  <th>User</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Department</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="no-results">No users found</td>
-                  </tr>
-                ) : (
-                  filteredUsers.map(user => (
-                    <tr key={user.id}>
-                      <td>
-                        <div className="user-cell">
-                          <div className="user-avatar">
-                            {userImages[user.id] ? (
-                              <img 
-                                src={userImages[user.id] || ''} 
-                                alt={`${user.firstName} ${user.lastName}`} 
-                                className="user-profile-image" 
-                              />
-                            ) : (
-                              <div className="user-profile-placeholder">
-                                {`${user.firstName.charAt(0)}${user.lastName.charAt(0)}`}
-                              </div>
-                            )}
-                          </div>
-                          <span>{`${user.firstName} ${user.lastName}`}</span>
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>Profile Picture</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Department</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map(user => (
+                <tr key={user.id}>
+                  <td>
+                    <div className="user-avatar">
+                      {userImages[user.id] ? (
+                        <img 
+                          src={userImages[user.id]} 
+                          alt={`${user.firstName} ${user.lastName}`}
+                          className="avatar-image"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.src = '/default-avatar.png';
+                          }}
+                        />
+                      ) : (
+                        <div className="default-avatar">
+                          {user.firstName.charAt(0).toUpperCase() +
+                          user.lastName.charAt(0).toUpperCase()}
                         </div>
-                      </td>
-                      <td>{user.email}</td>
-                      <td>{user.role.replace('_', ' ')}</td>
-                      <td>{user.department}</td>
-                      <td>
-                        <span className={`status-badge status-${user.status.toLowerCase()}`}>
-                          {user.status}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="action-buttons">
+                      )}
+                    </div>
+                  </td>
+                  <td>{user.firstName} {user.lastName}</td>
+                  <td>{user.email}</td>
+                  <td>{user.role || 'Standard User'}</td>
+                  <td>{user.department || 'Unassigned'}</td>
+                  <td>
+                    <span className={`status-badge status-${user.status?.toLowerCase() || 'active'}`}>
+                      {user.status || 'Active'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="action-buttons">
+                      <button 
+                        className="action-btn"
+                        onClick={() => handleEditUser(user)}
+                      >
+                        View
+                      </button>
+                      {authUser?.role === 'admin' && (
+                        <>
                           <button 
-                            className="action-btn"
-                            onClick={() => setSelectedUser(user)}
-                            title="View user details"
+                            className="action-btn warning-btn"
+                            onClick={() => {
+                              setEditedUser(user);
+                              setIsEditMode(true);
+                            }}
                           >
-                            View
+                            Edit
                           </button>
-                          {authUser?.role === 'admin' && (
-                            <>
-                              <button 
-                                className="action-btn warning"
-                                onClick={() => handleEditUser(user)}
-                                title="Edit user"
-                              >
-                                Edit
-                              </button>
-                              <button 
-                                className="action-btn destructive"
-                                onClick={() => {
-                                  setSelectedUser(user);
-                                  setShowConfirmDelete(true);
-                                }}
-                                title="Delete user"
-                              >
-                                Delete
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          )}
+                          <button 
+                            className="action-btn destructive-btn"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setShowConfirmDelete(true);
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-          {/* View User Modal */}
-          {selectedUser && !isEditMode && !showConfirmDelete && (
+          {selectedUser && (
             <div className="user-details-modal">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h2>User Details</h2>
+                  <h2>{isEditMode ? 'Edit User' : 'User Details'}</h2>
                   <button 
                     className="close-btn" 
-                    onClick={() => setSelectedUser(null)}
+                    onClick={handleCloseModal}
                   >
                     ×
                   </button>
                 </div>
+                
                 <div className="user-details">
                   <div className="user-details-header">
                     <div className="user-avatar large">
                       {userImages[selectedUser.id] ? (
                         <img 
-                          src={userImages[selectedUser.id] || ''} 
-                          alt={`${selectedUser.firstName} ${selectedUser.lastName}`} 
-                          className="user-profile-image" 
+                          src={userImages[selectedUser.id]} 
+                          alt={`${selectedUser.firstName} ${selectedUser.lastName}`}
+                          className="avatar-image"
+                          onError={(e) => {
+                            const img = e.target as HTMLImageElement;
+                            img.src = '/default-avatar.png';
+                          }}
                         />
                       ) : (
-                        <div className="user-profile-placeholder">
-                          {`${selectedUser.firstName.charAt(0)}${selectedUser.lastName.charAt(0)}`}
+                        <div className="default-avatar">
+                          {selectedUser.firstName.charAt(0).toUpperCase() +
+                          selectedUser.lastName.charAt(0).toUpperCase()}
                         </div>
                       )}
                     </div>
-                    <h3>{`${selectedUser.firstName} ${selectedUser.lastName}`}</h3>
                   </div>
-                  <div className="user-details-info">
-                    <p><strong>Email:</strong> {selectedUser.email}</p>
-                    <p><strong>Role:</strong> {selectedUser.role.replace('_', ' ')}</p>
-                    <p><strong>Department:</strong> {selectedUser.department}</p>
-                    <p><strong>Status:</strong> {selectedUser.status}</p>
-                  </div>
-                  {authUser?.role === 'admin' && (
-                    <div className="modal-actions">
-                      <button 
-                        className="secondary-btn" 
-                        onClick={() => setSelectedUser(null)}
-                      >
-                        Close
-                      </button>
-                      <button 
-                        className="warning-btn" 
-                        onClick={() => handleEditUser(selectedUser)}
-                      >
-                        Edit User
-                      </button>
-                      <button 
-                        className="destructive-btn" 
-                        onClick={() => setShowConfirmDelete(true)}
-                      >
-                        Delete User
-                      </button>
+
+                  {isEditMode ? (
+                    <form 
+                      className="edit-form"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSaveUser();
+                      }}
+                    >
+                      <div className="form-group">
+                        <label>First Name</label>
+                        <input
+                          type="text"
+                          name="firstName"
+                          value={editedUser?.firstName || ''}
+                          onChange={handleEditInputChange}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Last Name</label>
+                        <input
+                          type="text"
+                          name="lastName"
+                          value={editedUser?.lastName || ''}
+                          onChange={handleEditInputChange}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Email</label>
+                        <input
+                          type="email"
+                          name="email"
+                          value={editedUser?.email || ''}
+                          onChange={handleEditInputChange}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Role</label>
+                        <select
+                          name="roleId"
+                          value={editedUser?.roleId || ''}
+                          onChange={handleEditInputChange}
+                          required
+                        >
+                          {roles.map(role => (
+                            <option key={role.id} value={role.id}>
+                              {role.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Department</label>
+                        <select
+                          name="department"
+                          value={editedUser?.department || ''}
+                          onChange={handleEditInputChange}
+                          required
+                        >
+                          <option value="">Select Department</option>
+                          {departments.map(dept => (
+                            <option key={dept.id} value={dept.name}>
+                              {dept.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select
+                          name="statusId"
+                          value={editedUser?.statusId || ''}
+                          onChange={handleEditInputChange}
+                          required
+                        >
+                          {statuses.map(status => (
+                            <option key={status.id} value={status.id}>
+                              {status.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="form-group profile-picture-group">
+                        <div className="profile-picture-container">
+                          {previewUrl ? (
+                            <img 
+                              src={previewUrl} 
+                              alt="Preview" 
+                              className="preview-image"
+                            />
+                          ) : userImages[selectedUser.id] ? (
+                            <img 
+                              src={userImages[selectedUser.id]} 
+                              alt="Current" 
+                              className="current-image"
+                            />
+                          ) : (
+                            <div className="default-avatar">
+                              {selectedUser.firstName.charAt(0).toUpperCase() +
+                              selectedUser.lastName.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="profile-picture-buttons">
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/gif"
+                            onChange={handleProfilePictureChange}
+                            ref={fileInputRef}
+                            style={{ display: 'none' }}
+                          />
+                          <button
+                            type="button"
+                            className="profile-picture-upload-btn"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploadProgress}
+                          >
+                            {uploadProgress ? 'Uploading...' : 'Change Picture'}
+                          </button>
+                          {userImages[selectedUser.id] && (
+                            <button
+                              type="button"
+                              className="profile-picture-delete-btn"
+                              onClick={() => handleDeleteProfilePicture(selectedUser.id)}
+                              disabled={uploadProgress}
+                            >
+                              Remove Picture
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="form-actions">
+                        <button 
+                          type="button" 
+                          className="secondary-btn"
+                          onClick={handleCloseModal}
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          type="submit" 
+                          className="primary-btn"
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="user-info-details">
+                      <div className="user-info-row">
+                        <span className="label">First Name:</span>
+                        <span className="value">{selectedUser.firstName}</span>
+                      </div>
+                      <div className="user-info-row">
+                        <span className="label">Last Name:</span>
+                        <span className="value">{selectedUser.lastName}</span>
+                      </div>
+                      <div className="user-info-row">
+                        <span className="label">Email:</span>
+                        <span className="value">{selectedUser.email}</span>
+                      </div>
+                      <div className="user-info-row">
+                        <span className="label">Role:</span>
+                        <span className="value">{selectedUser.role || 'Standard User'}</span>
+                      </div>
+                      <div className="user-info-row">
+                        <span className="label">Department:</span>
+                        <span className="value">{selectedUser.department || 'Unassigned'}</span>
+                      </div>
+                      <div className="user-info-row">
+                        <span className="label">Status:</span>
+                        <span className="value">{selectedUser.status || 'Active'}</span>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -718,195 +933,9 @@ const UsersPage: React.FC = () => {
             </div>
           )}
 
-          {/* Edit User Modal */}
-          {isEditMode && editedUser && (
-            <div className="user-details-modal">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h2>Edit User</h2>
-                  <button 
-                    className="close-btn" 
-                    onClick={() => {
-                      setIsEditMode(false);
-                      setSelectedUser(null);
-                      setEditedUser(null);
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="user-edit-form">
-                <div className="profile-picture-section">
-  <div className="current-picture">
-    <h3>Profile Picture</h3>
-    <div className="profile-picture-container">
-      <div className="user-avatar large">
-        {previewUrl ? (
-          <img 
-            src={previewUrl} 
-            alt="Preview" 
-            className="user-profile-image" 
-          />
-        ) : userImages[editedUser.id] ? (
-          <img 
-            src={userImages[editedUser.id] || ''} 
-            alt={`${editedUser.firstName} ${editedUser.lastName}`} 
-            className="user-profile-image" 
-          />
-        ) : (
-          <div className="user-profile-placeholder">
-            {`${editedUser.firstName.charAt(0)}${editedUser.lastName.charAt(0)}`}
-          </div>
-        )}
-      </div>
-      <label htmlFor="profilePicture" className="profile-picture-edit-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-        </svg>
-      </label>
-    </div>
-    <input
-      type="file"
-      id="profilePicture"
-      name="profilePicture"
-      accept="image/jpeg,image/png,image/gif"
-      onChange={handleProfilePictureChange}
-      className="hidden-file-input"
-      ref={fileInputRef}
-    />
-  </div>
-  <div className="picture-actions">
-    {(previewUrl || userImages[editedUser.id]) && (
-      <button 
-        type="button" 
-        className="profile-picture-delete-btn"
-        onClick={handleProfilePictureDelete}
-        disabled={uploadProgress}
-      >
-        Remove Picture
-      </button>
-    )}
-    {previewUrl && (
-      <button
-        type="button"
-        className="profile-picture-upload-btn"
-        onClick={handleProfilePictureUpload}
-        disabled={uploadProgress}
-      >
-        {uploadProgress ? 'Uploading...' : 'Save Picture'}
-      </button>
-    )}
-  </div>
-</div>
-                  <div className="form-group">
-                    <label htmlFor="firstName">First Name</label>
-                    <input
-                      type="text"
-                      id="firstName"
-                      name="firstName"
-                      value={editedUser.firstName}
-                      onChange={handleEditInputChange}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="lastName">Last Name</label>
-                    <input
-                      type="text"
-                      id="lastName"
-                      name="lastName"
-                      value={editedUser.lastName}
-                      onChange={handleEditInputChange}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="email">Email</label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={editedUser.email}
-                      onChange={handleEditInputChange}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="role">Role</label>
-                    <select
-                      id="role"
-                      name="role"
-                      value={editedUser.role}
-                      onChange={handleEditInputChange}
-                      required
-                    >
-                      {roles.map(role => (
-                        <option key={role.id} value={role.id}>
-                          {role.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="department">Department</label>
-                    <select
-                      id="department"
-                      name="department"
-                      value={editedUser.department}
-                      onChange={handleEditInputChange}
-                      required
-                    >
-                      <option value="">Select Department</option>
-                      {departments.map(dept => (
-                        <option key={dept.id} value={dept.name}>
-                          {dept.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="status">Status</label>
-                    <select
-                      id="status"
-                      name="status"
-                      value={editedUser.status}
-                      onChange={handleEditInputChange}
-                      required
-                    >
-                      <option value="active">Active</option>
-                      <option value="inactive">Inactive</option>
-                    </select>
-                  </div>
-                  <div className="modal-actions">
-                    <button 
-                      className="secondary-btn" 
-                      onClick={() => {
-                        setIsEditMode(false);
-                        setSelectedUser(null);
-                        setEditedUser(null);
-                      }}
-                      disabled={isSubmitting}
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      className="primary-btn" 
-                      onClick={handleSaveUser}
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save Changes'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Confirm Delete Modal */}
           {showConfirmDelete && selectedUser && (
-            <div className="user-details-modal">
-              <div className="modal-content confirm-delete">
+            <div className="confirm-delete-modal">
+              <div className="modal-content">
                 <div className="modal-header">
                   <h2>Confirm Delete</h2>
                   <button 
@@ -916,34 +945,31 @@ const UsersPage: React.FC = () => {
                     ×
                   </button>
                 </div>
-                <div className="confirm-message">
-                  <p>Are you sure you want to delete the user <strong>{selectedUser.firstName} {selectedUser.lastName}</strong>?</p>
-                  <p className="warning-text">This action cannot be undone.</p>
+                <div className="modal-body">
+                  <p>Are you sure you want to delete this user?</p>
+                  <p className="user-name-to-delete">{selectedUser.firstName} {selectedUser.lastName}</p>
                 </div>
-                <div className="modal-actions">
+                <div className="modal-footer">
                   <button 
-                    className="secondary-btn" 
+                    className="secondary-btn"
                     onClick={() => setShowConfirmDelete(false)}
-                    disabled={isSubmitting}
                   >
                     Cancel
                   </button>
                   <button 
-                    className="destructive-btn" 
+                    className="destructive-btn"
                     onClick={handleDeleteUser}
-                    disabled={isSubmitting}
                   >
-                    {isSubmitting ? 'Deleting...' : 'Delete User'}
+                    Delete
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Message Modal */}
           {modalMessage && (
-            <div className="user-details-modal">
-              <div className="modal-content message-modal">
+            <div className="message-modal">
+              <div className="modal-content">
                 <div className="modal-header">
                   <h2>{modalMessage.title}</h2>
                   <button 
@@ -953,16 +979,8 @@ const UsersPage: React.FC = () => {
                     ×
                   </button>
                 </div>
-                <div className={`message-content ${modalMessage.type}`}>
+                <div className="modal-body">
                   <p>{modalMessage.text}</p>
-                </div>
-                <div className="modal-actions">
-                  <button 
-                    className="primary-btn" 
-                    onClick={handleCloseModal}
-                  >
-                    OK
-                  </button>
                 </div>
               </div>
             </div>

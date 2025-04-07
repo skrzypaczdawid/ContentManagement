@@ -11,10 +11,11 @@ interface AuthContextType {
   register: (userData: any) => Promise<void>;
   hasRole: (role: string) => boolean;
   updateUser: (updatedUser?: User | null) => void;
-  updateUserProfile: (profileData: ProfileUpdateData) => Promise<void>;
+  updateUserProfile: (profileData: ProfileUpdateData) => Promise<User>;
   uploadProfilePicture: (file: File) => Promise<void>;
   deleteProfilePicture: () => Promise<void>;
   getProfilePictureUrl: () => string;
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -169,7 +170,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateUserProfile,
     uploadProfilePicture,
     deleteProfilePicture,
-    getProfilePictureUrl
+    getProfilePictureUrl,
+    setUser
   };
 
   return (

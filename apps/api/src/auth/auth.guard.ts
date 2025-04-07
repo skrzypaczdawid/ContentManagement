@@ -3,6 +3,7 @@ import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, SetMe
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { Reflector } from '@nestjs/core';
+import { JWT_SECRET } from './auth.constants';
 
 // Define metadata keys
 export const IS_PUBLIC_KEY = 'isPublic';
@@ -35,7 +36,9 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       // Verify the token
-      const payload = await this.jwtService.verifyAsync(token);
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: JWT_SECRET
+      });
       
       // Add user information to request
       request.user = payload;

@@ -35,6 +35,34 @@ CREATE TABLE locations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- User Roles
+CREATE TABLE roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- User Statuses
+CREATE TABLE user_statuses (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Insert default roles
+INSERT INTO roles (name, description) VALUES 
+('admin', 'Administrator with full system access'),
+('standard_user', 'Regular user with limited access');
+
+-- Insert default statuses
+INSERT INTO user_statuses (name, description) VALUES 
+('active', 'User account is active and can log in'),
+('inactive', 'User account is disabled and cannot log in');
+
 -- Users
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -45,8 +73,8 @@ CREATE TABLE users (
     last_name VARCHAR(100) NOT NULL,
     employee_id VARCHAR(50) UNIQUE,
     phone VARCHAR(50),
-    role VARCHAR(50) NOT NULL DEFAULT 'standard_user',
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
+    role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+    status_id INTEGER NOT NULL REFERENCES user_statuses(id) ON DELETE RESTRICT,
     department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
     manager_id UUID REFERENCES users(id) ON DELETE SET NULL,
     location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
@@ -55,6 +83,8 @@ CREATE TABLE users (
     room_number VARCHAR(20),
     hire_date DATE,
     last_login TIMESTAMP WITH TIME ZONE,
+    profile_picture BYTEA,
+    profile_picture_type VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -318,8 +348,8 @@ CREATE TABLE email_templates (
 -- ============== INDEXES ==================
 
 -- Users indexes
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_status ON users(status);
+CREATE INDEX idx_users_role ON users(role_id);
+CREATE INDEX idx_users_status ON users(status_id);
 CREATE INDEX idx_users_department_id ON users(department_id);
 CREATE INDEX idx_users_manager_id ON users(manager_id);
 CREATE INDEX idx_users_location_id ON users(location_id);
