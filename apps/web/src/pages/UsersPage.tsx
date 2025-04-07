@@ -736,59 +736,69 @@ const UsersPage: React.FC = () => {
                   </button>
                 </div>
                 <div className="user-edit-form">
-                  <div className="profile-picture-section">
-                    <div className="current-picture">
-                      <h3>Profile Picture</h3>
-                      <div className="user-avatar large">
-                        {previewUrl ? (
-                          <img 
-                            src={previewUrl} 
-                            alt="Preview" 
-                            className="user-profile-image" 
-                          />
-                        ) : userImages[editedUser.id] ? (
-                          <img 
-                            src={userImages[editedUser.id] || ''} 
-                            alt={`${editedUser.firstName} ${editedUser.lastName}`} 
-                            className="user-profile-image" 
-                          />
-                        ) : (
-                          <div className="user-profile-placeholder">
-                            {`${editedUser.firstName.charAt(0)}${editedUser.lastName.charAt(0)}`}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="picture-actions">
-                      <div className="picture-buttons">
-                        <button 
-                          type="button" 
-                          className="profile-picture-edit-btn"
-                          onClick={() => fileInputRef.current?.click()}
-                          disabled={uploadProgress}
-                        >
-                          <span className="material-icons">edit</span>
-                        </button>
-                        <button 
-                          type="button" 
-                          className="profile-picture-delete-btn"
-                          onClick={handleProfilePictureDelete}
-                          disabled={uploadProgress || (!userImages[editedUser.id] && !previewUrl)}
-                        >
-                          <span className="material-icons">delete</span>
-                        </button>
-                        <input
-                          type="file"
-                          id="profilePicture"
-                          name="profilePicture"
-                          accept="image/jpeg,image/png,image/gif"
-                          onChange={handleProfilePictureChange}
-                          className="hidden-file-input"
-                          ref={fileInputRef}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                <div className="profile-picture-section">
+  <div className="current-picture">
+    <h3>Profile Picture</h3>
+    <div className="profile-picture-container">
+      <div className="user-avatar large">
+        {previewUrl ? (
+          <img 
+            src={previewUrl} 
+            alt="Preview" 
+            className="user-profile-image" 
+          />
+        ) : userImages[editedUser.id] ? (
+          <img 
+            src={userImages[editedUser.id] || ''} 
+            alt={`${editedUser.firstName} ${editedUser.lastName}`} 
+            className="user-profile-image" 
+          />
+        ) : (
+          <div className="user-profile-placeholder">
+            {`${editedUser.firstName.charAt(0)}${editedUser.lastName.charAt(0)}`}
+          </div>
+        )}
+      </div>
+      <label htmlFor="profilePicture" className="profile-picture-edit-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+      </label>
+    </div>
+    <input
+      type="file"
+      id="profilePicture"
+      name="profilePicture"
+      accept="image/jpeg,image/png,image/gif"
+      onChange={handleProfilePictureChange}
+      className="hidden-file-input"
+      ref={fileInputRef}
+    />
+  </div>
+  <div className="picture-actions">
+    {(previewUrl || userImages[editedUser.id]) && (
+      <button 
+        type="button" 
+        className="profile-picture-delete-btn"
+        onClick={handleProfilePictureDelete}
+        disabled={uploadProgress}
+      >
+        Remove Picture
+      </button>
+    )}
+    {previewUrl && (
+      <button
+        type="button"
+        className="profile-picture-upload-btn"
+        onClick={handleProfilePictureUpload}
+        disabled={uploadProgress}
+      >
+        {uploadProgress ? 'Uploading...' : 'Save Picture'}
+      </button>
+    )}
+  </div>
+</div>
                   <div className="form-group">
                     <label htmlFor="firstName">First Name</label>
                     <input
