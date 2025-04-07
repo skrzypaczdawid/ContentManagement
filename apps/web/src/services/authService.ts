@@ -25,6 +25,7 @@ export interface User {
   lastName: string;
   role: string;
   departmentId?: number;
+  profilePictureUrl?: string;
 }
 
 export interface AuthResponse {
@@ -226,6 +227,85 @@ export const authService = {
       return updatedUser;
     } catch (error) {
       console.error('Profile update error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Upload profile picture
+   */
+  async uploadProfilePicture(file: File): Promise<{ success: boolean, message: string }> {
+    const token = this.getToken();
+    
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+    
+    try {
+      const formData = new FormData();
+      formData.append('profilePicture', file);
+      
+      const response = await fetch(`${API_BASE_URL}/users/profile-picture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to upload profile picture');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Profile picture upload error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get profile picture URL
+   */
+  getProfilePictureUrl(): string {
+    const token = this.getToken();
+    
+    if (!token) {
+      return '';
+    }
+    
+    // Add a timestamp to prevent caching
+    const timestamp = new Date().getTime();
+    return `${API_BASE_URL}/users/profile-picture?t=${timestamp}`;
+  },
+
+  /**
+   * Delete profile picture
+   */
+  async deleteProfilePicture(): Promise<{ success: boolean, message: string }> {
+    const token = this.getToken();
+    
+    if (!token) {
+      throw new Error('Not authenticated');
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/users/profile-picture`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to delete profile picture');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Profile picture deletion error:', error);
       throw error;
     }
   },

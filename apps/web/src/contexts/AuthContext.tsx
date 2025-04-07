@@ -12,6 +12,9 @@ interface AuthContextType {
   hasRole: (role: string) => boolean;
   updateUser: (updatedUser?: User | null) => void;
   updateUserProfile: (profileData: ProfileUpdateData) => Promise<void>;
+  uploadProfilePicture: (file: File) => Promise<void>;
+  deleteProfilePicture: () => Promise<void>;
+  getProfilePictureUrl: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -111,6 +114,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // Upload profile picture
+  const uploadProfilePicture = async (file: File) => {
+    setIsLoading(true);
+    try {
+      await authService.uploadProfilePicture(file);
+      // Update the user object with the new profile picture URL
+      if (user) {
+        const profilePictureUrl = authService.getProfilePictureUrl();
+        setUser({
+          ...user,
+          profilePictureUrl
+        });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Delete profile picture
+  const deleteProfilePicture = async () => {
+    setIsLoading(true);
+    try {
+      await authService.deleteProfilePicture();
+      // Remove the profile picture URL from the user object
+      if (user) {
+        const { profilePictureUrl, ...userWithoutPicture } = user;
+        setUser(userWithoutPicture as User);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Get profile picture URL
+  const getProfilePictureUrl = () => {
+    return authService.getProfilePictureUrl();
+  };
+
   // Check if user has a specific role
   const hasRole = (role: string) => {
     return !!user && user.role === role;
@@ -125,7 +166,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     hasRole,
     updateUser,
-    updateUserProfile
+    updateUserProfile,
+    uploadProfilePicture,
+    deleteProfilePicture,
+    getProfilePictureUrl
   };
 
   return (

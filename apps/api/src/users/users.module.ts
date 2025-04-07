@@ -4,9 +4,17 @@ import { UsersController } from './users.controller';
 import { UsersService } from '../users/users.service';
 import { DatabaseModule } from '../database/database.module';
 import { AuthModule } from '../auth/auth.module';
+import { MulterModule } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 
 @Module({
-  imports: [DatabaseModule, AuthModule],
+  imports: [
+    DatabaseModule, 
+    AuthModule,
+    MulterModule.register({
+      storage: memoryStorage(), // Use memory storage for binary data
+    }),
+  ],
   controllers: [UsersController],
   providers: [UsersService],
   exports: [UsersService],
