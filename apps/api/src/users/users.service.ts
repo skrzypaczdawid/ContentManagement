@@ -3,6 +3,8 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { PoolClient } from 'pg';
 import { Express } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Define user profile update DTO
 export interface UpdateUserProfileDto {
@@ -175,88 +177,113 @@ export class UsersService {
   }
 
   /**
-   * Upload and save user profile picture
+   * Upload a profile picture for a user
+   * @param userId The ID of the user
+   * @param file The uploaded file
+   * @returns The updated user object
    */
   async uploadProfilePicture(userId: string, file: Express.Multer.File) {
-    let client: PoolClient | null = null;
-    
     try {
-      // Get database connection
-      if (!this.databaseService.getPool()) {
-        throw new Error('Database not configured');
-      }
-      
-      client = await this.databaseService.getPool()!.connect();
-      
-      // Check if user exists
-      const userCheck = await client.query(
-        'SELECT id FROM cmdb.users WHERE id = $1',
-        [userId]
-      );
-      
-      if (userCheck.rowCount === 0) {
+      // Find the user
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
+
+      // Generate a unique filename
+      const fileExtension = file.originalname.split('.').pop();
+      const fileName = `${userId}-${Date.now()}.${fileExtension}`;
       
-      // First, check if we need to add a profile_picture column to the users table
-      const checkColumnExists = await client.query(`
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_schema = 'cmdb' 
-        AND table_name = 'users' 
-        AND column_name = 'profile_picture'
-      `);
+      // Define the upload directory
+      const uploadDir = path.join(process.cwd(), 'uploads/profile-pictures');
       
-      if (checkColumnExists.rowCount === 0) {
-        // Add profile_picture column if it doesn't exist
-        await client.query(`
-          ALTER TABLE cmdb.users 
-          ADD COLUMN profile_picture BYTEA,
-          ADD COLUMN profile_picture_type VARCHAR(50)
-        `);
-      } else {
-        // Check if profile_picture_type column exists
-        const checkTypeColumnExists = await client.query(`
-          SELECT column_name 
-          FROM information_schema.columns 
-          WHERE table_schema = 'cmdb' 
-          AND table_name = 'users' 
-          AND column_name = 'profile_picture_type'
-        `);
-        
-        if (checkTypeColumnExists.rowCount === 0) {
-          // Add profile_picture_type column if it doesn't exist
-          await client.query(`
-            ALTER TABLE cmdb.users 
-            ADD COLUMN profile_picture_type VARCHAR(50)
-          `);
-        }
+      // Ensure the directory exists
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
       }
       
-      // Log file details for debugging
-      this.logger.log(`Processing file for user ${userId}: ${file.originalname}, size: ${file.size}, mimetype: ${file.mimetype}`);
+      const filePath = path.join(uploadDir, fileName);
       
-      // Ensure the file buffer is properly handled
-      if (!file.buffer || file.buffer.length === 0) {
-        throw new Error('File buffer is empty or invalid');
-      }
+      // Write the file to disk
+      fs.writeFileSync(filePath, file.buffer);
       
-      // Update the user's profile picture
-      await client.query(
-        `UPDATE cmdb.users 
-         SET profile_picture = $1, profile_picture_type = $2, updated_at = NOW()
-         WHERE id = $3`,
-        [file.buffer, file.mimetype, userId]
-      );
+      // Update the user's profile picture in the database
+      const updatedUser = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          profilePicture: `/uploads/profile-pictures/${fileName}`,
+          updatedAt: new Date(),
+        },
+      });
       
-      this.logger.log(`Profile picture updated for user ${userId}, size: ${file.size} bytes, type: ${file.mimetype}`);
-      
-      return { success: true, message: 'Profile picture updated successfully' };
+      return {
+        success: true,
+        message: 'Profile picture uploaded successfully',
+        user: {
+          id: updatedUser.id,
+          profilePicture: updatedUser.profilePicture,
+        },
+      };
     } catch (error) {
-      this.logger.error(`Failed to upload profile picture: ${error.message}`);
+      console.error('Error uploading profile picture:', error);
       throw error;
-    } finally {
-      if (client) client.release();
+    }
+  }
+
+  /**
+   * Delete a user's profile picture
+   * @param userId The ID of the user
+   * @returns Success message
+   */
+  async deleteProfilePicture(userId: string) {
+    try {
+      // Find the user
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+
+      // Check if the user has a profile picture
+      if (!user.profilePicture) {
+        return {
+          success: true,
+          message: 'User does not have a profile picture',
+        };
+      }
+
+      // Get the file path
+      const filePath = path.join(
+        process.cwd(),
+        user.profilePicture.replace(/^\//, '')
+      );
+
+      // Delete the file if it exists
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+
+      // Update the user in the database
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          profilePicture: null,
+          updatedAt: new Date(),
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Profile picture deleted successfully',
+      };
+    } catch (error) {
+      console.error('Error deleting profile picture:', error);
+      throw error;
     }
   }
 
@@ -307,9 +334,53 @@ export class UsersService {
   }
 
   /**
-   * Delete user profile picture
+   * Get all available user roles
    */
-  async deleteProfilePicture(userId: string) {
+  async getUserRoles() {
+    let client: PoolClient | null = null;
+    
+    try {
+      // Get database connection
+      if (!this.databaseService.getPool()) {
+        throw new Error('Database not configured');
+      }
+      
+      client = await this.databaseService.getPool()!.connect();
+      
+      // Query distinct roles from users table
+      const result = await client?.query(
+        "SELECT DISTINCT role FROM cmdb.users WHERE role IS NOT NULL"
+      );
+      
+      // If no roles found, return default roles
+      if (!result?.rows.length) {
+        return [
+          { id: 'admin', name: 'Admin' },
+          { id: 'standard_user', name: 'Standard User' }
+        ];
+      }
+      
+      // Map the database result to role objects
+      return result?.rows.map(row => ({
+        id: row.role,
+        name: row.role.replace('_', ' ')
+      })) || [];
+    } catch (error) {
+      this.logger.error(`Failed to fetch user roles: ${error.message}`);
+      // Return default roles on error
+      return [
+        { id: 'admin', name: 'Admin' },
+        { id: 'standard_user', name: 'Standard User' }
+      ];
+    } finally {
+      if (client) client.release();
+    }
+  }
+
+  /**
+   * Update a user by ID (admin only)
+   */
+  async updateUser(userId: string, userData: any) {
     let client: PoolClient | null = null;
     
     try {
@@ -330,15 +401,77 @@ export class UsersService {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
       
-      // Delete the profile picture
-      await client.query(
-        'UPDATE cmdb.users SET profile_picture = NULL, profile_picture_type = NULL, updated_at = NOW() WHERE id = $1',
+      // Update user
+      const result = await client.query(
+        `UPDATE cmdb.users 
+         SET first_name = $1, last_name = $2, email = $3, role = $4, 
+             department_id = $5, status = $6, updated_at = NOW()
+         WHERE id = $7
+         RETURNING id, username, email, first_name, last_name, role, department_id, status`,
+        [
+          userData.firstName,
+          userData.lastName,
+          userData.email,
+          userData.role,
+          userData.departmentId,
+          userData.status,
+          userId
+        ]
+      );
+      
+      // Map the database result to a user object
+      const updatedUser = result.rows[0];
+      return {
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        firstName: updatedUser.first_name,
+        lastName: updatedUser.last_name,
+        role: updatedUser.role,
+        departmentId: updatedUser.department_id,
+        status: updatedUser.status
+      };
+    } catch (error) {
+      this.logger.error(`Failed to update user: ${error.message}`);
+      throw error;
+    } finally {
+      if (client) client.release();
+    }
+  }
+
+  /**
+   * Delete a user by ID (admin only)
+   */
+  async deleteUser(userId: string) {
+    let client: PoolClient | null = null;
+    
+    try {
+      // Get database connection
+      if (!this.databaseService.getPool()) {
+        throw new Error('Database not configured');
+      }
+      
+      client = await this.databaseService.getPool()!.connect();
+      
+      // Check if user exists
+      const userCheck = await client.query(
+        'SELECT id FROM cmdb.users WHERE id = $1',
         [userId]
       );
       
-      return { success: true, message: 'Profile picture deleted successfully' };
+      if (userCheck.rowCount === 0) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+      
+      // Delete the user
+      await client.query(
+        'DELETE FROM cmdb.users WHERE id = $1',
+        [userId]
+      );
+      
+      return { success: true, message: 'User deleted successfully' };
     } catch (error) {
-      this.logger.error(`Failed to delete profile picture: ${error.message}`);
+      this.logger.error(`Failed to delete user: ${error.message}`);
       throw error;
     } finally {
       if (client) client.release();

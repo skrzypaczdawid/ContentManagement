@@ -1,23 +1,24 @@
 // apps/api/src/users/users.controller.ts
-import { 
-  Controller, 
-  Get, 
-  Put, 
+import {
+  Controller,
+  Get,
   Post,
+  Body,
+  Param,
+  Put,
   Delete,
-  Body, 
-  Param, 
-  HttpException, 
-  HttpStatus, 
-  UseGuards, 
   Request,
+  UseGuards,
+  HttpException,
+  HttpStatus,
   UseInterceptors,
   UploadedFile,
   Res
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UsersService, UpdateUserProfileDto } from '../users/users.service';
-import { Public, JwtAuthGuard } from '../auth/auth.guard';
+import { UsersService, UpdateUserProfileDto } from './users.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Public } from '../auth/auth.guard';
 import { Response } from 'express';
 
 @Controller('users')
@@ -64,6 +65,19 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('roles')
+  async getUserRoles() {
+    try {
+      return await this.usersService.getUserRoles();
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to fetch user roles',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Put('profile')
   async updateProfile(@Request() req, @Body() updateProfileDto: UpdateUserProfileDto) {
     try {
@@ -81,6 +95,27 @@ export class UsersController {
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to update profile',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put(':id')
+  async updateUser(@Param('id') id: string, @Body() userData: any, @Request() req) {
+    try {
+      // Check if user has admin role
+      if (req.user.role !== 'admin') {
+        throw new HttpException(
+          'Only administrators can update other users',
+          HttpStatus.FORBIDDEN
+        );
+      }
+      
+      return await this.usersService.updateUser(id, userData);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to update user',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
@@ -211,6 +246,112 @@ export class UsersController {
     } catch (error) {
       throw new HttpException(
         error.message || 'Failed to delete profile picture',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/profile-picture')
+  @UseInterceptors(
+    FileInterceptor('profilePicture', {
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB in bytes
+      },
+      fileFilter: (req, file, callback) => {
+        // Log the incoming file
+        console.log(`Received file: ${file.originalname}, size: ${file.size}, mimetype: ${file.mimetype}`);
+
+        // Check file type
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif'];
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return callback(
+            new HttpException(
+              'Invalid file type. Only JPEG, PNG, and GIF images are allowed.',
+              HttpStatus.BAD_REQUEST
+            ),
+            false
+          );
+        }
+        callback(null, true);
+      },
+    })
+  )
+  async uploadUserProfilePicture(
+    @Param('id') userId: string,
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    try {
+      // Check if user has admin role
+      if (req.user.role !== 'admin') {
+        throw new HttpException(
+          'Only administrators can update user profile pictures',
+          HttpStatus.FORBIDDEN
+        );
+      }
+      
+      if (!file) {
+        throw new HttpException('No file uploaded', HttpStatus.BAD_REQUEST);
+      }
+
+      console.log(`Processing file for user ${userId}: ${file.originalname}, size: ${file.size}`);
+      
+      return await this.usersService.uploadProfilePicture(userId, file);
+    } catch (error) {
+      console.error('Profile picture upload error:', error);
+      throw new HttpException(
+        error.message || 'Failed to upload profile picture',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id/profile-picture')
+  async deleteUserProfilePicture(@Param('id') userId: string, @Request() req) {
+    try {
+      // Check if user has admin role
+      if (req.user.role !== 'admin') {
+        throw new HttpException(
+          'Only administrators can delete user profile pictures',
+          HttpStatus.FORBIDDEN
+        );
+      }
+      
+      return await this.usersService.deleteProfilePicture(userId);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to delete profile picture',
+        error.status || HttpStatus.INTERNAL_SERVER_ERROR
+      );
+    }
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  async deleteUser(@Param('id') id: string, @Request() req) {
+    try {
+      // Check if user has admin role
+      if (req.user.role !== 'admin') {
+        throw new HttpException(
+          'Only administrators can delete users',
+          HttpStatus.FORBIDDEN
+        );
+      }
+      
+      // Prevent self-deletion
+      if (req.user.sub === id) {
+        throw new HttpException(
+          'You cannot delete your own account',
+          HttpStatus.BAD_REQUEST
+        );
+      }
+      
+      return await this.usersService.deleteUser(id);
+    } catch (error) {
+      throw new HttpException(
+        error.message || 'Failed to delete user',
         error.status || HttpStatus.INTERNAL_SERVER_ERROR
       );
     }

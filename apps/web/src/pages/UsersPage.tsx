@@ -1,9 +1,9 @@
 // apps/web/src/pages/UsersPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import '../styles/UsersPage.css';
 import { useAuth } from '../contexts/AuthContext';
 
-// Define user interface
+// Define interfaces
 interface User {
   id: string;
   firstName: string;
@@ -11,7 +11,19 @@ interface User {
   email: string;
   role: string;
   department: string;
+  departmentId?: string;
   status: string;
+}
+
+interface Department {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface Role {
+  id: string;
+  name: string;
 }
 
 // Helper function to fetch profile image
@@ -43,7 +55,7 @@ const fetchProfileImage = async (userId: string): Promise<string | null> => {
 };
 
 const UsersPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -52,6 +64,22 @@ const UsersPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('All Roles');
+  
+  // New state for edit mode
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [editedUser, setEditedUser] = useState<User | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [modalMessage, setModalMessage] = useState<{title: string, text: string, type: string} | null>(null);
+  const [showConfirmDelete, setShowConfirmDelete] = useState<boolean>(false);
+
+  // State for profile picture upload
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<boolean>(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Fetch users from the API
   useEffect(() => {
@@ -89,6 +117,65 @@ const UsersPage: React.FC = () => {
     };
     
     fetchUsers();
+  }, []);
+
+  // Fetch departments from the API
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+        
+        const response = await fetch('http://localhost:3001/departments', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch departments: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setDepartments(data);
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+      }
+    };
+    
+    fetchDepartments();
+  }, []);
+
+  // Fetch roles from the API
+  useEffect(() => {
+    const fetchRoles = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+        
+        const response = await fetch('http://localhost:3001/users/roles', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch roles: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        setRoles(data);
+      } catch (error) {
+        console.error('Error fetching roles:', error);
+        // Set default roles if API fails
+        setRoles([
+          { id: 'admin', name: 'Admin' },
+          { id: 'standard_user', name: 'Standard User' }
+        ]);
+      }
+    };
+    
+    fetchRoles();
   }, []);
 
   // Fetch profile images for all users
@@ -142,12 +229,310 @@ const UsersPage: React.FC = () => {
     setRoleFilter(e.target.value);
   };
 
+  // Handle edit user
+  const handleEditUser = (user: User) => {
+    setSelectedUser(user);
+    setEditedUser({...user});
+    setIsEditMode(true);
+  };
+
+  // Handle input change in edit form
+  const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (!editedUser) return;
+    
+    const { name, value } = e.target;
+    setEditedUser({
+      ...editedUser,
+      [name]: value
+    });
+  };
+
+  // Handle save edited user
+  const handleSaveUser = async () => {
+    if (!editedUser) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setModalMessage({
+          title: 'Error',
+          text: 'Authentication token not found',
+          type: 'error'
+        });
+        return;
+      }
+      
+      // Get department ID from selected department name
+      const selectedDept = departments.find(d => d.name === editedUser.department);
+      const departmentId = selectedDept?.id || null;
+      
+      // Prepare user data for update
+      const userData = {
+        ...editedUser,
+        departmentId
+      };
+      
+      const response = await fetch(`http://localhost:3001/users/${editedUser.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(userData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update user: ${response.status}`);
+      }
+      
+      const updatedUser = await response.json();
+      
+      // Update users list
+      setUsers(users.map(u => u.id === updatedUser.id ? {
+        ...updatedUser,
+        department: departments.find(d => d.id === updatedUser.departmentId)?.name || 'Unassigned'
+      } : u));
+      
+      // Close modal and reset state
+      setModalMessage({
+        title: 'Success',
+        text: 'User updated successfully',
+        type: 'success'
+      });
+      setIsEditMode(false);
+      setSelectedUser(null);
+      setEditedUser(null);
+    } catch (error) {
+      console.error('Error updating user:', error);
+      setModalMessage({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'Failed to update user',
+        type: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle delete user
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      setIsSubmitting(true);
+      
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setModalMessage({
+          title: 'Error',
+          text: 'Authentication token not found',
+          type: 'error'
+        });
+        return;
+      }
+      
+      const response = await fetch(`http://localhost:3001/users/${selectedUser.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete user: ${response.status}`);
+      }
+      
+      // Update users list
+      setUsers(users.filter(u => u.id !== selectedUser.id));
+      
+      // Close modal and reset state
+      setModalMessage({
+        title: 'Success',
+        text: 'User deleted successfully',
+        type: 'success'
+      });
+      setShowConfirmDelete(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      setModalMessage({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'Failed to delete user',
+        type: 'error'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle profile picture change
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setModalMessage({
+        title: 'Error',
+        text: 'Profile picture must be less than 5MB',
+        type: 'error'
+      });
+      return;
+    }
+    
+    // Check file type
+    if (!['image/jpeg', 'image/png', 'image/gif'].includes(file.type)) {
+      setModalMessage({
+        title: 'Error',
+        text: 'Only JPEG, PNG, and GIF images are allowed',
+        type: 'error'
+      });
+      return;
+    }
+    
+    setSelectedFile(file);
+    
+    // Create preview URL
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle profile picture upload
+  const handleProfilePictureUpload = async () => {
+    if (!selectedFile || !editedUser) return;
+    
+    try {
+      setUploadProgress(true);
+      
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setModalMessage({
+          title: 'Error',
+          text: 'Authentication token not found',
+          type: 'error'
+        });
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('profilePicture', selectedFile);
+      
+      // Use the user ID from the edited user
+      const response = await fetch(`http://localhost:3001/users/${editedUser.id}/profile-picture`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to upload profile picture: ${response.status}`);
+      }
+      
+      // Update user images
+      const newImageUrl = await fetchProfileImage(editedUser.id);
+      setUserImages(prev => ({
+        ...prev,
+        [editedUser.id]: newImageUrl
+      }));
+      
+      setModalMessage({
+        title: 'Success',
+        text: 'Profile picture uploaded successfully',
+        type: 'success'
+      });
+      
+      // Reset state
+      setSelectedFile(null);
+      setPreviewUrl(null);
+    } catch (error) {
+      console.error('Error uploading profile picture:', error);
+      setModalMessage({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'Failed to upload profile picture',
+        type: 'error'
+      });
+    } finally {
+      setUploadProgress(false);
+    }
+  };
+
+  // Handle profile picture delete
+  const handleProfilePictureDelete = async () => {
+    if (!editedUser) return;
+    
+    try {
+      setUploadProgress(true);
+      
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setModalMessage({
+          title: 'Error',
+          text: 'Authentication token not found',
+          type: 'error'
+        });
+        return;
+      }
+      
+      const response = await fetch(`http://localhost:3001/users/${editedUser.id}/profile-picture`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete profile picture: ${response.status}`);
+      }
+      
+      // Update user images
+      setUserImages(prev => ({
+        ...prev,
+        [editedUser.id]: null
+      }));
+      
+      setModalMessage({
+        title: 'Success',
+        text: 'Profile picture deleted successfully',
+        type: 'success'
+      });
+      
+      // Reset state
+      setSelectedFile(null);
+      setPreviewUrl(null);
+    } catch (error) {
+      console.error('Error deleting profile picture:', error);
+      setModalMessage({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'Failed to delete profile picture',
+        type: 'error'
+      });
+    } finally {
+      setUploadProgress(false);
+    }
+  };
+
+  // Close modal
+  const handleCloseModal = () => {
+    setModalMessage(null);
+    setSelectedUser(null);
+    setEditedUser(null);
+    setIsEditMode(false);
+    setShowConfirmDelete(false);
+  };
+
   return (
     <div className="users-page">
       <header className="page-header">
         <h1>User Management</h1>
         <div className="header-actions">
-          {user?.role === 'admin' && (
+          {authUser?.role === 'admin' && (
             <button className="primary-btn">+ Add New User</button>
           )}
         </div>
@@ -232,12 +617,36 @@ const UsersPage: React.FC = () => {
                         </span>
                       </td>
                       <td>
-                        <button 
-                          className="action-btn"
-                          onClick={() => setSelectedUser(user)}
-                        >
-                          View
-                        </button>
+                        <div className="action-buttons">
+                          <button 
+                            className="action-btn"
+                            onClick={() => setSelectedUser(user)}
+                            title="View user details"
+                          >
+                            View
+                          </button>
+                          {authUser?.role === 'admin' && (
+                            <>
+                              <button 
+                                className="action-btn warning"
+                                onClick={() => handleEditUser(user)}
+                                title="Edit user"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className="action-btn destructive"
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setShowConfirmDelete(true);
+                                }}
+                                title="Delete user"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -246,7 +655,8 @@ const UsersPage: React.FC = () => {
             </table>
           )}
 
-          {selectedUser && (
+          {/* View User Modal */}
+          {selectedUser && !isEditMode && !showConfirmDelete && (
             <div className="user-details-modal">
               <div className="modal-content">
                 <div className="modal-header">
@@ -281,6 +691,268 @@ const UsersPage: React.FC = () => {
                     <p><strong>Department:</strong> {selectedUser.department}</p>
                     <p><strong>Status:</strong> {selectedUser.status}</p>
                   </div>
+                  {authUser?.role === 'admin' && (
+                    <div className="modal-actions">
+                      <button 
+                        className="secondary-btn" 
+                        onClick={() => setSelectedUser(null)}
+                      >
+                        Close
+                      </button>
+                      <button 
+                        className="warning-btn" 
+                        onClick={() => handleEditUser(selectedUser)}
+                      >
+                        Edit User
+                      </button>
+                      <button 
+                        className="destructive-btn" 
+                        onClick={() => setShowConfirmDelete(true)}
+                      >
+                        Delete User
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit User Modal */}
+          {isEditMode && editedUser && (
+            <div className="user-details-modal">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h2>Edit User</h2>
+                  <button 
+                    className="close-btn" 
+                    onClick={() => {
+                      setIsEditMode(false);
+                      setSelectedUser(null);
+                      setEditedUser(null);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="user-edit-form">
+                  <div className="profile-picture-section">
+                    <div className="current-picture">
+                      <h3>Profile Picture</h3>
+                      <div className="user-avatar large">
+                        {previewUrl ? (
+                          <img 
+                            src={previewUrl} 
+                            alt="Preview" 
+                            className="user-profile-image" 
+                          />
+                        ) : userImages[editedUser.id] ? (
+                          <img 
+                            src={userImages[editedUser.id] || ''} 
+                            alt={`${editedUser.firstName} ${editedUser.lastName}`} 
+                            className="user-profile-image" 
+                          />
+                        ) : (
+                          <div className="user-profile-placeholder">
+                            {`${editedUser.firstName.charAt(0)}${editedUser.lastName.charAt(0)}`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="picture-actions">
+                      <div className="picture-buttons">
+                        <button 
+                          type="button" 
+                          className="profile-picture-edit-btn"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploadProgress}
+                        >
+                          <span className="material-icons">edit</span>
+                        </button>
+                        <button 
+                          type="button" 
+                          className="profile-picture-delete-btn"
+                          onClick={handleProfilePictureDelete}
+                          disabled={uploadProgress || (!userImages[editedUser.id] && !previewUrl)}
+                        >
+                          <span className="material-icons">delete</span>
+                        </button>
+                        <input
+                          type="file"
+                          id="profilePicture"
+                          name="profilePicture"
+                          accept="image/jpeg,image/png,image/gif"
+                          onChange={handleProfilePictureChange}
+                          className="hidden-file-input"
+                          ref={fileInputRef}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="firstName">First Name</label>
+                    <input
+                      type="text"
+                      id="firstName"
+                      name="firstName"
+                      value={editedUser.firstName}
+                      onChange={handleEditInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="lastName">Last Name</label>
+                    <input
+                      type="text"
+                      id="lastName"
+                      name="lastName"
+                      value={editedUser.lastName}
+                      onChange={handleEditInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="email">Email</label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={editedUser.email}
+                      onChange={handleEditInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="role">Role</label>
+                    <select
+                      id="role"
+                      name="role"
+                      value={editedUser.role}
+                      onChange={handleEditInputChange}
+                      required
+                    >
+                      {roles.map(role => (
+                        <option key={role.id} value={role.id}>
+                          {role.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="department">Department</label>
+                    <select
+                      id="department"
+                      name="department"
+                      value={editedUser.department}
+                      onChange={handleEditInputChange}
+                      required
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map(dept => (
+                        <option key={dept.id} value={dept.name}>
+                          {dept.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="status">Status</label>
+                    <select
+                      id="status"
+                      name="status"
+                      value={editedUser.status}
+                      onChange={handleEditInputChange}
+                      required
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div className="modal-actions">
+                    <button 
+                      className="secondary-btn" 
+                      onClick={() => {
+                        setIsEditMode(false);
+                        setSelectedUser(null);
+                        setEditedUser(null);
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      className="primary-btn" 
+                      onClick={handleSaveUser}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Confirm Delete Modal */}
+          {showConfirmDelete && selectedUser && (
+            <div className="user-details-modal">
+              <div className="modal-content confirm-delete">
+                <div className="modal-header">
+                  <h2>Confirm Delete</h2>
+                  <button 
+                    className="close-btn" 
+                    onClick={() => setShowConfirmDelete(false)}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="confirm-message">
+                  <p>Are you sure you want to delete the user <strong>{selectedUser.firstName} {selectedUser.lastName}</strong>?</p>
+                  <p className="warning-text">This action cannot be undone.</p>
+                </div>
+                <div className="modal-actions">
+                  <button 
+                    className="secondary-btn" 
+                    onClick={() => setShowConfirmDelete(false)}
+                    disabled={isSubmitting}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="destructive-btn" 
+                    onClick={handleDeleteUser}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Deleting...' : 'Delete User'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Message Modal */}
+          {modalMessage && (
+            <div className="user-details-modal">
+              <div className="modal-content message-modal">
+                <div className="modal-header">
+                  <h2>{modalMessage.title}</h2>
+                  <button 
+                    className="close-btn" 
+                    onClick={handleCloseModal}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className={`message-content ${modalMessage.type}`}>
+                  <p>{modalMessage.text}</p>
+                </div>
+                <div className="modal-actions">
+                  <button 
+                    className="primary-btn" 
+                    onClick={handleCloseModal}
+                  >
+                    OK
+                  </button>
                 </div>
               </div>
             </div>
