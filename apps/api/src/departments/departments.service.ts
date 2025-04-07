@@ -2,15 +2,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Inject } from '@nestjs/common';
 import { PoolClient } from 'pg';
+import { DatabaseService } from '../database/database.service';
 
 @Injectable()
 export class DepartmentsService {
   private readonly logger = new Logger(DepartmentsService.name);
 
   constructor(
-    @Inject('DATABASE_SERVICE') private readonly databaseService: any
+    private readonly databaseService: DatabaseService
   ) {}
-
   /**
    * Find all departments
    */

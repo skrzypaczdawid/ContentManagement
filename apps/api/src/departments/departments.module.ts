@@ -7,13 +7,7 @@ import { DatabaseModule } from '../database/database.module';
 @Module({
   imports: [DatabaseModule],
   controllers: [DepartmentsController],
-  providers: [
-    DepartmentsService,
-    {
-      provide: 'DATABASE_SERVICE',
-      useClass: DatabaseModule
-    }
-  ],
+  providers: [DepartmentsService],
   exports: [DepartmentsService],
 })
 export class DepartmentsModule {}
