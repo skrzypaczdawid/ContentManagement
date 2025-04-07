@@ -1,7 +1,7 @@
-// apps/web/src/pages/Dashboard.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../styles/Dashboard.css';
 import { useAuth } from '../contexts/AuthContext';
+import { getUsersCount, getUsersCountThisWeek } from '../api/apiClient';
 
 // Import page components
 import AssetsPage from './AssetsPage';
@@ -69,6 +69,30 @@ const NAV_ITEMS: NavItem[] = [
 
 // Overview Content Component
 function OverviewContent() {
+  const [usersCount, setUsersCount] = useState<number | null>(null);
+  const [usersCountWeek, setUsersCountWeek] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [count, weeklyCount] = await Promise.all([
+          getUsersCount(),
+          getUsersCountThisWeek()
+        ]);
+        
+        setUsersCount(count);
+        setUsersCountWeek(weeklyCount);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   return (
     <div className="overview-content">
       <div className="dashboard-welcome">
@@ -90,12 +114,11 @@ function OverviewContent() {
         <div className="stat-card">
           <h3>Departments</h3>
           <p className="stat-value">6</p>
-          <p className="stat-detail">All departments tracked</p>
         </div>
         <div className="stat-card">
           <h3>Users</h3>
-          <p className="stat-value">42</p>
-          <p className="stat-detail">+2 new users</p>
+          <p className="stat-value">{isLoading ? '...' : usersCount}</p>
+          <p className="stat-detail">{isLoading ? '...' : `+${usersCountWeek} this week`}</p>
         </div>
       </div>
 

@@ -254,3 +254,49 @@ export const apiRequest = async (
     throw error;
   }
 };
+
+/**
+ * Get the count of users in the system
+ */
+export const getUsersCount = async (): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/count`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch users count');
+    }
+
+    const data = await response.json();
+    return data.count || 0;
+  } catch (error) {
+    console.error('API request failed:', error);
+    // Return 0 as a fallback
+    return 0;
+  }
+};
+
+/**
+ * Get the count of users created this week
+ */
+export const getUsersCountThisWeek = async (): Promise<number> => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/countWeek`, {
+      headers: getHeaders(false),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch weekly users count');
+    }
+
+    const data = await response.json();
+    return data.count || 0;
+  } catch (error) {
+    console.error('API request failed:', error);
+    // Return 0 as a fallback
+    return 0;
+  }
+};

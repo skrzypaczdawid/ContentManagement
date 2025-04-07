@@ -6,13 +6,15 @@ import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { DepartmentsModule } from './departments/departments.module';
+import { UsersModule } from './users/users.module';
 import { JwtAuthGuard, RolesGuard } from './auth/auth.guard';
 
 @Module({
   imports: [
     DatabaseModule, 
     AuthModule,
-    DepartmentsModule
+    DepartmentsModule,
+    UsersModule
   ],
   controllers: [AppController],
   providers: [
