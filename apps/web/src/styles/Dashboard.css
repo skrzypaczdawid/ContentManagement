@@ -61,6 +61,32 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #4ECDC4; /* Secondary color from Nord theme */
+  margin-right: 0.5rem;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-profile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-profile-placeholder {
+  color: #2E3440; /* Dark background color from Nord theme */
+  font-weight: bold;
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+
 .user-info {
   display: flex;
   flex-direction: column;

@@ -236,9 +236,10 @@ function OverviewContent() {
 }
 
 const Dashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, getProfilePictureUrl } = useAuth();
   const [activeNavItem, setActiveNavItem] = useState('overview');
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
 
   // Filter navigation items based on user role
   const filteredNavItems = NAV_ITEMS.filter(
@@ -249,6 +250,37 @@ const Dashboard: React.FC = () => {
   const ActiveComponent = NAV_ITEMS.find(
     item => item.id === activeNavItem
   )?.component || OverviewContent;
+
+  // Fetch profile image
+  useEffect(() => {
+    const fetchProfileImage = async () => {
+      try {
+        const pictureUrl = getProfilePictureUrl();
+        if (!pictureUrl) return;
+        
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+        
+        const response = await fetch(pictureUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const imageUrl = URL.createObjectURL(blob);
+          setProfileImageUrl(imageUrl);
+        }
+      } catch (error) {
+        console.error('Error fetching profile image:', error);
+      }
+    };
+
+    if (user) {
+      fetchProfileImage();
+    }
+  }, [user, getProfilePictureUrl]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -277,6 +309,21 @@ const Dashboard: React.FC = () => {
             className="user-info-container" 
             onClick={() => setShowUserMenu(!showUserMenu)}
           >
+            <div className="user-avatar">
+              {profileImageUrl ? (
+                <img 
+                  src={profileImageUrl} 
+                  alt="Profile" 
+                  className="user-profile-image" 
+                />
+              ) : (
+                <div className="user-profile-placeholder">
+                  {user?.firstName && user?.lastName 
+                    ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}` 
+                    : 'U'}
+                </div>
+              )}
+            </div>
             <div className="user-info">
               <span className="user-name">{user?.firstName} {user?.lastName}</span>
               <span className="user-role">{user?.role}</span>

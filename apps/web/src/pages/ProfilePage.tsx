@@ -16,6 +16,10 @@ const ProfilePage: React.FC = () => {
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Add state for modal
+  const [showModal, setShowModal] = useState(false);
+  const [modalMessage, setModalMessage] = useState({ title: '', text: '', type: '' });
 
   useEffect(() => {
     if (user) {
@@ -28,7 +32,32 @@ const ProfilePage: React.FC = () => {
       });
       
       // Set profile picture URL if available
-      setPreviewUrl(getProfilePictureUrl());
+      const pictureUrl = getProfilePictureUrl();
+      if (pictureUrl) {
+        // Create a function to fetch the image with authentication
+        const fetchProfileImage = async () => {
+          try {
+            const token = localStorage.getItem('auth_token');
+            if (!token) return;
+            
+            const response = await fetch(pictureUrl, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const blob = await response.blob();
+              const imageUrl = URL.createObjectURL(blob);
+              setPreviewUrl(imageUrl);
+            }
+          } catch (error) {
+            console.error('Error fetching profile image:', error);
+          }
+        };
+        
+        fetchProfileImage();
+      }
     }
   }, [user, getProfilePictureUrl]);
 
@@ -54,49 +83,30 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleProfilePictureUpload = async () => {
-    if (!profilePicture) return;
-    
-    setIsLoading(true);
-    setMessage({ text: '', type: '' });
-    
-    try {
-      await uploadProfilePicture(profilePicture);
-      setMessage({ 
-        text: 'Profile picture uploaded successfully!', 
-        type: 'success' 
-      });
-      // Reset the file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      setProfilePicture(null);
-    } catch (error) {
-      setMessage({ 
-        text: error.message || 'Failed to upload profile picture', 
-        type: 'error' 
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleProfilePictureDelete = async () => {
     setIsLoading(true);
     setMessage({ text: '', type: '' });
     
     try {
       await deleteProfilePicture();
-      setMessage({ 
-        text: 'Profile picture deleted successfully!', 
-        type: 'success' 
+      
+      // Show success modal
+      setModalMessage({
+        title: 'Success!',
+        text: 'Profile picture deleted successfully!',
+        type: 'success'
       });
+      setShowModal(true);
+      
       setPreviewUrl('');
     } catch (error) {
-      setMessage({ 
-        text: error.message || 'Failed to delete profile picture', 
-        type: 'error' 
+      // Show error modal
+      setModalMessage({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'Failed to delete profile picture',
+        type: 'error'
       });
+      setShowModal(true);
     } finally {
       setIsLoading(false);
     }
@@ -125,18 +135,29 @@ const ProfilePage: React.FC = () => {
         setProfilePicture(null);
       }
       
-      setMessage({ 
-        text: 'Profile updated successfully!', 
-        type: 'success' 
+      // Show success modal
+      setModalMessage({
+        title: 'Success!',
+        text: 'Profile updated successfully!',
+        type: 'success'
       });
+      setShowModal(true);
     } catch (error) {
-      setMessage({ 
-        text: error.message || 'Failed to update profile', 
-        type: 'error' 
+      // Show error modal
+      setModalMessage({
+        title: 'Error',
+        text: error instanceof Error ? error.message : 'Failed to update profile',
+        type: 'error'
       });
+      setShowModal(true);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Close modal handler
+  const closeModal = () => {
+    setShowModal(false);
   };
 
   if (!user) {
@@ -156,61 +177,73 @@ const ProfilePage: React.FC = () => {
         </div>
       )}
 
-      <div className="profile-picture-section">
-        <div className="profile-picture-container">
-          {previewUrl ? (
-            <img 
-              src={previewUrl} 
-              alt="Profile" 
-              className="profile-picture"
-            />
-          ) : (
-            <div className="profile-picture-placeholder">
-              {user.firstName && user.lastName 
-                ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}` 
-                : 'User'}
+      {/* Status Modal */}
+      {showModal && (
+        <div className="profile-modal-overlay">
+          <div className={`profile-modal ${modalMessage.type}`}>
+            <div className="modal-header">
+              <h3>{modalMessage.title}</h3>
+              <button className="modal-close-btn" onClick={closeModal}>×</button>
             </div>
-          )}
+            <div className="modal-body">
+              <p>{modalMessage.text}</p>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="modal-continue-btn" 
+                onClick={closeModal}
+              >
+                Continue Editing
+              </button>
+            </div>
+          </div>
         </div>
-        
-        <div className="profile-picture-controls">
-          <input
-            type="file"
-            id="profilePicture"
-            accept="image/jpeg, image/png, image/gif"
-            onChange={handleFileChange}
-            ref={fileInputRef}
-            className="profile-picture-input"
-          />
-          <label htmlFor="profilePicture" className="profile-picture-label">
-            Choose Picture
-          </label>
+      )}
+
+      <form className="profile-form" onSubmit={handleSubmit}>
+        <div className="profile-picture-section">
+          <div className="profile-picture-container">
+            {previewUrl ? (
+              <img 
+                src={previewUrl} 
+                alt="Profile" 
+                className="profile-picture"
+              />
+            ) : (
+              <div className="profile-picture-placeholder">
+                {user.firstName && user.lastName 
+                  ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}` 
+                  : 'User'}
+              </div>
+            )}
+            <label htmlFor="profilePicture" className="profile-picture-edit-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </label>
+            <input
+              type="file"
+              id="profilePicture"
+              accept="image/jpeg, image/png, image/gif"
+              onChange={handleFileChange}
+              ref={fileInputRef}
+              className="profile-picture-input"
+            />
+          </div>
           
-          {profilePicture && (
-            <button 
-              type="button" 
-              className="profile-picture-upload-btn"
-              onClick={handleProfilePictureUpload}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Uploading...' : 'Upload Picture'}
-            </button>
-          )}
-          
-          {previewUrl && !profilePicture && (
+          {previewUrl && (
             <button 
               type="button" 
               className="profile-picture-delete-btn"
               onClick={handleProfilePictureDelete}
               disabled={isLoading}
             >
-              {isLoading ? 'Deleting...' : 'Delete Picture'}
+              {isLoading ? 'Deleting...' : 'Remove Picture'}
             </button>
           )}
         </div>
-      </div>
 
-      <form className="profile-form" onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="firstName">First Name</label>
           <input

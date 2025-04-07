@@ -245,6 +245,8 @@ export const authService = {
       const formData = new FormData();
       formData.append('profilePicture', file);
       
+      console.log(`Uploading file: ${file.name}, size: ${file.size}, type: ${file.type}`);
+      
       const response = await fetch(`${API_BASE_URL}/users/profile-picture`, {
         method: 'POST',
         headers: {
@@ -254,8 +256,8 @@ export const authService = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to upload profile picture');
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(errorData.message || `Upload failed with status: ${response.status}`);
       }
 
       return await response.json();
@@ -277,7 +279,12 @@ export const authService = {
     
     // Add a timestamp to prevent caching
     const timestamp = new Date().getTime();
-    return `${API_BASE_URL}/users/profile-picture?t=${timestamp}`;
+    // Create a URL object that we can use
+    const url = new URL(`${API_BASE_URL}/users/profile-picture`);
+    // Add timestamp as query parameter
+    url.searchParams.append('t', timestamp.toString());
+    
+    return url.toString();
   },
 
   /**

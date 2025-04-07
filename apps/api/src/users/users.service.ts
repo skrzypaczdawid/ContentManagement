@@ -77,6 +77,47 @@ export class UsersService {
   }
 
   /**
+   * Get all users
+   */
+  async getAllUsers() {
+    let client: PoolClient | null = null;
+    
+    try {
+      // Get database connection
+      if (!this.databaseService.getPool()) {
+        throw new Error('Database not configured');
+      }
+      
+      client = await this.databaseService.getPool()!.connect();
+      
+      // Query all users with department name
+      const result = await client?.query(`
+        SELECT u.id, u.username, u.email, u.first_name, u.last_name, u.role, 
+               u.status, d.name as department_name
+        FROM cmdb.users u
+        LEFT JOIN cmdb.departments d ON u.department_id = d.id
+        ORDER BY u.first_name, u.last_name
+      `);
+      
+      // Map the database result to user objects
+      return result?.rows.map(row => ({
+        id: row.id,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        email: row.email,
+        role: row.role,
+        department: row.department_name || 'Unassigned',
+        status: row.status || 'active'
+      })) || [];
+    } catch (error) {
+      this.logger.error(`Failed to fetch all users: ${error.message}`);
+      throw error;
+    } finally {
+      if (client) client.release();
+    }
+  }
+
+  /**
    * Update user profile information
    */
   async updateUserProfile(userId: string, profileData: UpdateUserProfileDto) {
@@ -190,6 +231,14 @@ export class UsersService {
             ADD COLUMN profile_picture_type VARCHAR(50)
           `);
         }
+      }
+      
+      // Log file details for debugging
+      this.logger.log(`Processing file for user ${userId}: ${file.originalname}, size: ${file.size}, mimetype: ${file.mimetype}`);
+      
+      // Ensure the file buffer is properly handled
+      if (!file.buffer || file.buffer.length === 0) {
+        throw new Error('File buffer is empty or invalid');
       }
       
       // Update the user's profile picture
