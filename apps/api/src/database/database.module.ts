@@ -6,7 +6,18 @@ import { DatabaseConfigService } from './database-config.service';
 
 @Module({
   controllers: [DatabaseController],
-  providers: [DatabaseService, DatabaseConfigService],
-  exports: [DatabaseService, DatabaseConfigService],
+  providers: [
+    DatabaseService,
+    DatabaseConfigService,
+    {
+      provide: 'DATABASE_SERVICE',
+      useExisting: DatabaseService
+    }
+  ],
+  exports: [
+    DatabaseService,
+    DatabaseConfigService,
+    'DATABASE_SERVICE'
+  ],
 })
 export class DatabaseModule {}

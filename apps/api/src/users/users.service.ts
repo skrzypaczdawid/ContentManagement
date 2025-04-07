@@ -1,6 +1,6 @@
 // apps/api/src/users/users.service.ts
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { DatabaseService } from '../database/database.service';
+import { Inject } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { Express } from 'express';
 import * as fs from 'fs';
@@ -16,8 +16,12 @@ export interface UpdateUserProfileDto {
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
+  private data: Buffer | null = null;
+  private contentType: string | null = null;
 
-  constructor(private readonly databaseService: DatabaseService) {}
+  constructor(
+    @Inject('DATABASE_SERVICE') private readonly databaseService: any
+  ) {}
 
   /**
    * Get the total count of users
@@ -133,20 +137,13 @@ export class UsersService {
       
       client = await this.databaseService.getPool()!.connect();
       
-      // Check if user exists
-      const userCheck = await client.query(
-        'SELECT id FROM cmdb.users WHERE id = $1',
-        [userId]
-      );
-      
-      if (userCheck.rowCount === 0) {
-        throw new NotFoundException(`User with ID ${userId} not found`);
-      }
-      
       // Update user profile
-      const result = await client.query(
+      const result = await client?.query(
         `UPDATE cmdb.users 
-         SET first_name = $1, last_name = $2, email = $3, updated_at = NOW()
+         SET first_name = $1, 
+             last_name = $2, 
+             email = $3,
+             updated_at = NOW()
          WHERE id = $4
          RETURNING id, username, email, first_name, last_name, role, department_id`,
         [
@@ -158,7 +155,11 @@ export class UsersService {
       );
       
       // Map the database result to a user object
-      const updatedUser = result.rows[0];
+      const updatedUser = result?.rows[0];
+      if (!updatedUser) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+      
       return {
         id: updatedUser.id,
         username: updatedUser.username,
@@ -183,53 +184,49 @@ export class UsersService {
    * @returns The updated user object
    */
   async uploadProfilePicture(userId: string, file: Express.Multer.File) {
+    let client: PoolClient | null = null;
+    
     try {
-      // Find the user
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
-
-      if (!user) {
+      // Get database connection
+      if (!this.databaseService.getPool()) {
+        throw new Error('Database not configured');
+      }
+      
+      client = await this.databaseService.getPool()!.connect();
+      
+      // Check if user exists
+      const userResult = await client?.query(
+        'SELECT id FROM cmdb.users WHERE id = $1',
+        [userId]
+      );
+      
+      if (!userResult?.rows?.[0]) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
-
-      // Generate a unique filename
-      const fileExtension = file.originalname.split('.').pop();
-      const fileName = `${userId}-${Date.now()}.${fileExtension}`;
       
-      // Define the upload directory
-      const uploadDir = path.join(process.cwd(), 'uploads/profile-pictures');
+      // Store the file in memory
+      this.data = file.buffer;
+      this.contentType = file.mimetype;
       
-      // Ensure the directory exists
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      
-      const filePath = path.join(uploadDir, fileName);
-      
-      // Write the file to disk
-      fs.writeFileSync(filePath, file.buffer);
-      
-      // Update the user's profile picture in the database
-      const updatedUser = await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          profilePicture: `/uploads/profile-pictures/${fileName}`,
-          updatedAt: new Date(),
-        },
-      });
+      // Update user with profile picture reference
+      await client?.query(
+        'UPDATE cmdb.users SET profile_picture = $1, profile_picture_type = $2, updated_at = NOW() WHERE id = $3',
+        [file.buffer, file.mimetype, userId]
+      );
       
       return {
         success: true,
         message: 'Profile picture uploaded successfully',
         user: {
-          id: updatedUser.id,
-          profilePicture: updatedUser.profilePicture,
-        },
+          id: userId,
+          profilePicture: file.originalname
+        }
       };
     } catch (error) {
-      console.error('Error uploading profile picture:', error);
+      this.logger.error('Error uploading profile picture:', error);
       throw error;
+    } finally {
+      if (client) client.release();
     }
   }
 
@@ -239,51 +236,42 @@ export class UsersService {
    * @returns Success message
    */
   async deleteProfilePicture(userId: string) {
+    let client: PoolClient | null = null;
+    
     try {
-      // Find the user
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
-
+      // Get database connection
+      if (!this.databaseService.getPool()) {
+        throw new Error('Database not configured');
+      }
+      
+      client = await this.databaseService.getPool()!.connect();
+      
+      // Check if user exists
+      const userResult = await client?.query(
+        'SELECT id, profile_picture FROM cmdb.users WHERE id = $1',
+        [userId]
+      );
+      
+      const user = userResult?.rows?.[0];
       if (!user) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
-
-      // Check if the user has a profile picture
-      if (!user.profilePicture) {
-        return {
-          success: true,
-          message: 'User does not have a profile picture',
-        };
-      }
-
-      // Get the file path
-      const filePath = path.join(
-        process.cwd(),
-        user.profilePicture.replace(/^\//, '')
+      
+      // Update user to remove profile picture
+      await client?.query(
+        'UPDATE cmdb.users SET profile_picture = NULL, profile_picture_type = NULL, updated_at = NOW() WHERE id = $1',
+        [userId]
       );
-
-      // Delete the file if it exists
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-
-      // Update the user in the database
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          profilePicture: null,
-          updatedAt: new Date(),
-        },
-      });
 
       return {
         success: true,
-        message: 'Profile picture deleted successfully',
+        message: 'Profile picture deleted successfully'
       };
     } catch (error) {
-      console.error('Error deleting profile picture:', error);
+      this.logger.error('Error deleting profile picture:', error);
       throw error;
+    } finally {
+      if (client) client.release();
     }
   }
 
@@ -301,32 +289,23 @@ export class UsersService {
       
       client = await this.databaseService.getPool()!.connect();
       
-      // Check if user exists
-      const userCheck = await client.query(
-        'SELECT id FROM cmdb.users WHERE id = $1',
-        [userId]
-      );
-      
-      if (userCheck.rowCount === 0) {
-        throw new NotFoundException(`User with ID ${userId} not found`);
-      }
-      
-      // Get the profile picture
-      const result = await client.query(
+      // Get user's profile picture
+      const result = await client?.query(
         'SELECT profile_picture, profile_picture_type FROM cmdb.users WHERE id = $1',
         [userId]
       );
       
-      if (!result.rows[0].profile_picture) {
-        return null; // No profile picture set
+      const user = result?.rows?.[0];
+      if (!user || !user.profile_picture) {
+        return null;
       }
       
       return { 
-        data: result.rows[0].profile_picture, 
-        contentType: result.rows[0].profile_picture_type || 'image/jpeg' 
+        data: user.profile_picture as Buffer, 
+        contentType: user.profile_picture_type || 'image/jpeg' 
       };
     } catch (error) {
-      this.logger.error(`Failed to get profile picture: ${error.message}`);
+      this.logger.error('Error getting profile picture:', error);
       throw error;
     } finally {
       if (client) client.release();
@@ -347,31 +326,15 @@ export class UsersService {
       
       client = await this.databaseService.getPool()!.connect();
       
-      // Query distinct roles from users table
+      // Get all roles
       const result = await client?.query(
-        "SELECT DISTINCT role FROM cmdb.users WHERE role IS NOT NULL"
+        'SELECT DISTINCT role FROM cmdb.users'
       );
       
-      // If no roles found, return default roles
-      if (!result?.rows.length) {
-        return [
-          { id: 'admin', name: 'Admin' },
-          { id: 'standard_user', name: 'Standard User' }
-        ];
-      }
-      
-      // Map the database result to role objects
-      return result?.rows.map(row => ({
-        id: row.role,
-        name: row.role.replace('_', ' ')
-      })) || [];
+      return result?.rows?.map(row => row.role) || [];
     } catch (error) {
-      this.logger.error(`Failed to fetch user roles: ${error.message}`);
-      // Return default roles on error
-      return [
-        { id: 'admin', name: 'Admin' },
-        { id: 'standard_user', name: 'Standard User' }
-      ];
+      this.logger.error('Error getting user roles:', error);
+      throw error;
     } finally {
       if (client) client.release();
     }
@@ -392,35 +355,37 @@ export class UsersService {
       client = await this.databaseService.getPool()!.connect();
       
       // Check if user exists
-      const userCheck = await client.query(
+      const userResult = await client?.query(
         'SELECT id FROM cmdb.users WHERE id = $1',
         [userId]
       );
       
-      if (userCheck.rowCount === 0) {
+      if (!userResult?.rows?.[0]) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
       
       // Update user
-      const result = await client.query(
+      const updateFields = Object.keys(userData)
+        .map((key, index) => `${key} = $${index + 1}`)
+        .join(', ');
+      
+      const values = Object.values(userData);
+      values.push(userId);
+      
+      const result = await client?.query(
         `UPDATE cmdb.users 
-         SET first_name = $1, last_name = $2, email = $3, role = $4, 
-             department_id = $5, status = $6, updated_at = NOW()
-         WHERE id = $7
-         RETURNING id, username, email, first_name, last_name, role, department_id, status`,
-        [
-          userData.firstName,
-          userData.lastName,
-          userData.email,
-          userData.role,
-          userData.departmentId,
-          userData.status,
-          userId
-        ]
+         SET ${updateFields}, 
+             updated_at = NOW()
+         WHERE id = $${values.length}
+         RETURNING id, username, email, first_name, last_name, role, department_id`,
+        values
       );
       
-      // Map the database result to a user object
-      const updatedUser = result.rows[0];
+      const updatedUser = result?.rows?.[0];
+      if (!updatedUser) {
+        throw new NotFoundException(`User with ID ${userId} not found`);
+      }
+      
       return {
         id: updatedUser.id,
         username: updatedUser.username,
@@ -428,11 +393,10 @@ export class UsersService {
         firstName: updatedUser.first_name,
         lastName: updatedUser.last_name,
         role: updatedUser.role,
-        departmentId: updatedUser.department_id,
-        status: updatedUser.status
+        departmentId: updatedUser.department_id
       };
     } catch (error) {
-      this.logger.error(`Failed to update user: ${error.message}`);
+      this.logger.error('Error updating user:', error);
       throw error;
     } finally {
       if (client) client.release();
@@ -454,24 +418,27 @@ export class UsersService {
       client = await this.databaseService.getPool()!.connect();
       
       // Check if user exists
-      const userCheck = await client.query(
+      const userResult = await client?.query(
         'SELECT id FROM cmdb.users WHERE id = $1',
         [userId]
       );
       
-      if (userCheck.rowCount === 0) {
+      if (!userResult?.rows?.[0]) {
         throw new NotFoundException(`User with ID ${userId} not found`);
       }
       
-      // Delete the user
-      await client.query(
+      // Delete user
+      await client?.query(
         'DELETE FROM cmdb.users WHERE id = $1',
         [userId]
       );
       
-      return { success: true, message: 'User deleted successfully' };
+      return {
+        success: true,
+        message: 'User deleted successfully'
+      };
     } catch (error) {
-      this.logger.error(`Failed to delete user: ${error.message}`);
+      this.logger.error('Error deleting user:', error);
       throw error;
     } finally {
       if (client) client.release();

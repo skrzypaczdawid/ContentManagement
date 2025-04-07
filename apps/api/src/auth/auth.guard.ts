@@ -30,16 +30,27 @@ export class JwtAuthGuard implements CanActivate {
     }
     
     if (!token) {
-      throw new UnauthorizedException('No token provided');
+      throw new UnauthorizedException('No authentication token provided');
     }
-    
+
     try {
+      // Verify the token
       const payload = await this.jwtService.verifyAsync(token);
-      // Attach user to request for use in controllers
-      request['user'] = payload;
+      
+      // Add user information to request
+      request.user = payload;
+      
+      // Check roles if required
+      const requiredRoles = this.reflector.get<string[]>(ROLES_KEY, context.getHandler());
+      if (requiredRoles && requiredRoles.length > 0) {
+        if (!request.user.role || !requiredRoles.includes(request.user.role)) {
+          throw new UnauthorizedException('Insufficient permissions');
+        }
+      }
+      
       return true;
-    } catch {
-      throw new UnauthorizedException('Invalid token');
+    } catch (error) {
+      throw new UnauthorizedException('Invalid or expired token');
     }
   }
 
@@ -58,8 +69,7 @@ export class RolesGuard implements CanActivate {
     if (!requiredRoles) {
       return true;
     }
-    
     const { user } = context.switchToHttp().getRequest();
-    return requiredRoles.some(role => user.role === role);
+    return requiredRoles.includes(user.role);
   }
 }

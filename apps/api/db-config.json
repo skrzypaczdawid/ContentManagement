@@ -1,8 +1,0 @@
-{
-  "hostname": "localhost",
-  "port": 5432,
-  "database": "dam",
-  "username": "postgres",
-  "password": "30f7a8af8a84e1fc0d08ee8c680c8826:e617e48a6bbb4b5aa48a50e7217293d5",
-  "isConfigured": true
-}
